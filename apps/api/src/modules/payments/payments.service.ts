@@ -17,6 +17,14 @@ export interface RefundDto {
   reason?: string;
 }
 
+export interface PaymentQueryDto extends PaginationQueryDto {
+  status?: string;
+  method?: string;
+  merchantId?: string;
+  from?: string;
+  to?: string;
+}
+
 @Injectable()
 export class PaymentsService {
   private readonly providers: PaymentProvider[] = [new CashPaymentProvider()];
@@ -58,10 +66,34 @@ export class PaymentsService {
     return provider;
   }
 
-  async list(tenantId: string, q: PaginationQueryDto) {
-    const where = { tenantId };
+  async list(tenantId: string, q: PaymentQueryDto) {
+    const where: any = { tenantId };
+    if (q.status) where.status = q.status;
+    if (q.method) where.method = q.method;
+    if (q.merchantId) where.order = { merchantId: q.merchantId };
+    if (q.from || q.to) {
+      where.createdAt = {};
+      if (q.from) where.createdAt.gte = new Date(q.from);
+      if (q.to) where.createdAt.lte = new Date(q.to);
+    }
+    if (q.search) {
+      where.OR = [
+        { providerRef: { contains: q.search, mode: 'insensitive' as const } },
+        { order: { orderNumber: { contains: q.search, mode: 'insensitive' as const } } },
+      ];
+    }
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.payment.findMany({ where, orderBy: { createdAt: 'desc' }, skip: q.skip, take: q.take }),
+      this.prisma.payment.findMany({
+        where,
+        include: {
+          order: { select: { id: true, orderNumber: true, merchantId: true } },
+          customer: { select: { id: true, fullName: true, phone: true } },
+          refunds: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: q.skip,
+        take: q.take,
+      }),
       this.prisma.payment.count({ where }),
     ]);
     return { items, total };

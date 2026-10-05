@@ -106,4 +106,62 @@ export class ReportsService {
     });
     return grouped.map((g) => ({ status: g.status, count: g._count._all }));
   }
+
+  /**
+   * Time-bucketed order counts and delivered revenue for charts. Bucketing is
+   * done in the database (date_trunc) so the browser never receives raw rows.
+   * `bucket` is restricted to a fixed allow-list — it is interpolated into the
+   * SQL only through Prisma.sql with a validated literal.
+   */
+  async timeseries(tenantId: string, range: DashboardRange, bucket: 'day' | 'hour') {
+    const unit = bucket === 'hour' ? 'hour' : 'day';
+    const rows = await this.prisma.$queryRaw<
+      Array<{ bucket: Date; orders: bigint; revenue: unknown }>
+    >`
+      SELECT date_trunc(${unit}::text, created_at) AS bucket,
+             COUNT(*)::bigint AS orders,
+             COALESCE(SUM(CASE WHEN status = 'delivered' THEN total ELSE 0 END), 0) AS revenue
+      FROM orders
+      WHERE tenant_id = ${tenantId}::uuid
+        AND created_at >= ${range.from}
+        AND created_at <= ${range.to}
+      GROUP BY bucket
+      ORDER BY bucket ASC
+    `;
+    return rows.map((r) => ({
+      bucket: r.bucket.toISOString(),
+      orders: Number(r.orders),
+      revenue: Number(r.revenue),
+    }));
+  }
+
+  /** Operational counters for the live operations page. */
+  async operations(tenantId: string) {
+    const [
+      unassignedOrders,
+      activeOrders,
+      onlineDrivers,
+      busyDrivers,
+      availableDrivers,
+      pausedDrivers,
+      suspendedDrivers,
+    ] = await this.prisma.$transaction([
+      this.prisma.order.count({ where: { tenantId, driverId: null, status: { in: ACTIVE_STATUSES } } }),
+      this.prisma.order.count({ where: { tenantId, status: { in: ACTIVE_STATUSES } } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'online' } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'busy' } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'online', isAvailable: true } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'paused' } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'suspended' } }),
+    ]);
+    return {
+      unassignedOrders,
+      activeOrders,
+      onlineDrivers,
+      busyDrivers,
+      availableDrivers,
+      pausedDrivers,
+      suspendedDrivers,
+    };
+  }
 }

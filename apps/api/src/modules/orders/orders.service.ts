@@ -37,6 +37,7 @@ export class OrdersService {
     if (q.status) {
       where.status = q.status === 'active' ? { in: ACTIVE_STATUSES } : (q.status as OrderStatus);
     }
+    if (q.paymentStatus) where.paymentStatus = q.paymentStatus;
     if (q.customerId) where.customerId = q.customerId;
     if (q.driverId) where.driverId = q.driverId;
     if (q.merchantId) where.merchantId = q.merchantId;

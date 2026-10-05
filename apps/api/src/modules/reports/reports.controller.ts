@@ -14,6 +14,11 @@ class DashboardQuery {
   @IsOptional() @IsString() to?: string;
 }
 
+class TimeseriesQuery extends DashboardQuery {
+  @IsOptional() @IsIn(['day', 'hour'])
+  bucket?: 'day' | 'hour';
+}
+
 @ApiTags('reports')
 @ApiBearerAuth()
 @Controller('reports')
@@ -32,5 +37,18 @@ export class ReportsController {
   ordersByStatus(@CurrentUser() user: AuthUser, @Query() q: DashboardQuery) {
     const range = ReportsService.resolveRange(q.preset, q.from, q.to);
     return this.reports.ordersByStatus(user.tenantId, range);
+  }
+
+  @Get('timeseries')
+  @RequirePermissions([PERMISSIONS.reports_view])
+  timeseries(@CurrentUser() user: AuthUser, @Query() q: TimeseriesQuery) {
+    const range = ReportsService.resolveRange(q.preset, q.from, q.to);
+    return this.reports.timeseries(user.tenantId, range, q.bucket === 'hour' ? 'hour' : 'day');
+  }
+
+  @Get('operations')
+  @RequirePermissions([PERMISSIONS.reports_view])
+  operations(@CurrentUser() user: AuthUser) {
+    return this.reports.operations(user.tenantId);
   }
 }

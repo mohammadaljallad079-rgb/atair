@@ -1,10 +1,19 @@
 import { Body, Controller, Get, Ip, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
-import { CreatePaymentDto, PaymentsService, RefundDto } from './payments.service';
+import { CreatePaymentDto, PaymentQueryDto, PaymentsService, RefundDto } from './payments.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto, paginated } from '../../common/dto/pagination.dto';
+
+class PaymentQueryBody extends PaginationQueryDto implements PaymentQueryDto {
+  @IsOptional() @IsString() status?: string;
+  @IsOptional() @IsIn(['cash', 'card', 'wallet', 'online', 'bank_transfer', 'cod']) method?: string;
+  @IsOptional() @IsUUID() merchantId?: string;
+  @IsOptional() @IsString() from?: string;
+  @IsOptional() @IsString() to?: string;
+}
 
 @ApiTags('payments')
 @ApiBearerAuth()
@@ -14,7 +23,7 @@ export class PaymentsController {
 
   @Get()
   @RequirePermissions([PERMISSIONS.payments_view])
-  async list(@CurrentUser() user: AuthUser, @Query() q: PaginationQueryDto) {
+  async list(@CurrentUser() user: AuthUser, @Query() q: PaymentQueryBody) {
     const { items, total } = await this.payments.list(user.tenantId, q);
     return paginated(items, total, q.page, q.pageSize);
   }

@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Centralized design tokens. Brand = Orange + Blue.
+ * Components must reference these variables / Tailwind brand+ink scales,
+ * never hardcode hex values.
+ */
+:root {
+  --brand-500: #f97316;
+  --brand-600: #ea580c;
+  --ink-600: #2563eb;
+  --ink-800: #1e40af;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --success: #16a34a;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --info: #2563eb;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--surface-muted);
+  color: var(--text);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Visible focus for keyboard users (accessibility). */
+:focus-visible {
+  outline: 2px solid var(--ink-600);
+  outline-offset: 2px;
+}
+
+/* Thin, unobtrusive scrollbars for dense operational tables. */
+.scroll-thin::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

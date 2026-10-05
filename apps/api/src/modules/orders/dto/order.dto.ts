@@ -119,6 +119,9 @@ export class OrderQueryDto extends PaginationQueryDto {
   @IsOptional() @IsString() status?: string;
 
   @ApiPropertyOptional()
+  @IsOptional() @IsString() paymentStatus?: string;
+
+  @ApiPropertyOptional()
   @IsOptional() @IsUUID() customerId?: string;
 
   @ApiPropertyOptional()
