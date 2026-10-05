@@ -17,9 +17,11 @@
     "api:test": "npm run -w @atair/api test",
     "admin:dev": "npm run -w @atair/admin dev",
     "admin:build": "npm run -w @atair/admin build",
-    "lint": "npm run -w @atair/api lint && npm run -w @atair/admin lint",
-    "typecheck": "npm run -w @atair/api typecheck && npm run -w @atair/admin typecheck",
-    "build": "npm run -w @atair/db generate && npm run api:build && npm run admin:build",
+    "merchant:dev": "npm run -w @atair/merchant dev",
+    "merchant:build": "npm run -w @atair/merchant build",
+    "lint": "npm run -w @atair/api lint && npm run -w @atair/admin lint && npm run -w @atair/merchant lint",
+    "typecheck": "npm run -w @atair/api typecheck && npm run -w @atair/admin typecheck && npm run -w @atair/merchant typecheck",
+    "build": "npm run -w @atair/db generate && npm run api:build && npm run admin:build && npm run merchant:build",
     "test": "npm run -w @atair/api test"
   },
   "engines": {

@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ACTIVE_STATUSES } from '../orders/order-state.machine';
 import { MerchantContext } from './merchant-context.service';
-import { MerchantReportsQueryDto } from './dto/merchant-portal.dto';
 
 export interface MerchantRange {
   from: Date;

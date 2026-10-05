@@ -5,6 +5,7 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 ## Layout
 - `apps/api` — NestJS + Prisma REST API.
 - `apps/admin` — Admin Control Center: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3001**. Wordmark «عَ الطاير» is an intentional placeholder (no real logo asset exists in the repo).
+- `apps/merchant` — Merchant / Business Portal: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3002**. Consumes only `/api/v1/merchant/*` (plus `/auth/*`); a pure merchant principal is blocked from tenant-wide routes by `MerchantBoundaryGuard`.
 - `packages/db` — Prisma schema, migrations, seed, and shared `@atair/db` package (exports `PrismaClient` + `PERMISSIONS`).
 
 ## Commands (run from repo root)
@@ -15,8 +16,9 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Seed: `npm run db:seed` (creates platform + `atair-demo` tenants, RBAC, demo users, Riyadh zone/pricing).
 - API dev: `npm run api:dev` | Build: `npm run api:build`
 - Typecheck (both apps): `npm run typecheck` | Lint (both apps): `npm run lint`
-- API tests: `npm run api:test` | Admin tests: `npm run -w @atair/admin test`
+- API tests: `npm run api:test` | Admin tests: `npm run -w @atair/admin test` | Merchant tests: `npm run -w @atair/merchant test`
 - Admin dev: `npm run admin:dev` | Admin build: `npm run admin:build`
+- Merchant dev: `npm run merchant:dev` | Merchant build: `npm run merchant:build`
 
 ## Admin app (apps/admin)
 - Next.js App Router under `src/app`; shared UI in `src/components`, API client in `src/lib`.
@@ -27,6 +29,12 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Brand tokens in `tailwind.config.ts`: `brand` (orange) + `ink` (blue) palettes.
 - `NEXT_PUBLIC_API_URL` is baked in at **build time**; changing it requires a rebuild (`npm run admin:build`). Set it to the browser-reachable API URL (not `localhost` from a remote browser).
 - Frontend permission checks are UX only — the API `PermissionsGuard` remains the security boundary.
+
+## Merchant app (apps/merchant)
+- Same Next.js App Router structure as the admin app (`src/app`, `src/components`, `src/lib`, `src/i18n`); portal pages live under `src/app/(portal)/*` behind `(portal)/layout.tsx`.
+- API surface is `/api/v1/merchant/*` only (see `src/lib/endpoints.ts`). The merchant is resolved from the JWT — never sent by the client.
+- `src/middleware.ts` gates on the non-sensitive `atair.session` presence flag; the access token stays in memory, refresh token in `localStorage` (`atair.refreshToken`).
+- Charts in `src/components/charts/charts.tsx` use the brand colors `#f97316` (orange) and `#2563eb` (ink blue).
 
 ## API conventions
 - Global prefix `/api`, URI versioning (default `v1`) → routes are `/api/v1/...`. Swagger at `/api/docs`.

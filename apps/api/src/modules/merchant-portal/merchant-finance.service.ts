@@ -3,7 +3,6 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { MerchantContext } from './merchant-context.service';
 import { MerchantReportsService } from './merchant-reports.service';
-import { MerchantReportsQueryDto } from './dto/merchant-portal.dto';
 
 /**
  * Merchant finance surface. Every query is scoped through `order.merchantId`
