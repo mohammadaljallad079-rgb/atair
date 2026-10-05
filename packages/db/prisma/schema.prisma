@@ -211,6 +211,7 @@ model Customer {
   id        String         @id @default(uuid()) @db.Uuid
   tenantId  String         @map("tenant_id") @db.Uuid
   userId    String?        @map("user_id") @db.Uuid
+  merchantId String?       @map("merchant_id") @db.Uuid
   fullName  String         @map("full_name")
   phone     String
   email     String?
@@ -221,14 +222,16 @@ model Customer {
   updatedAt DateTime       @updatedAt @map("updated_at")
 
   tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  merchant    Merchant?            @relation(fields: [merchantId], references: [id], onDelete: SetNull)
   addresses   CustomerAddress[]
   preferences CustomerPreference[]
   orders      Order[]
   payments    Payment[]
   tickets     SupportTicket[]
 
-  @@unique([tenantId, phone])
   @@index([tenantId, status])
+  @@index([tenantId, merchantId])
+  @@index([tenantId, phone])
   @@map("customers")
 }
 
@@ -457,6 +460,8 @@ model Merchant {
   users        MerchantUser[]
   orders       Order[]
   pricingRules PricingRule[]
+  settlements  MerchantSettlement[]
+  customers    Customer[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
@@ -478,6 +483,7 @@ model MerchantBranch {
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   orders   Order[]
+  users    MerchantUser[]
 
   @@index([tenantId, merchantId])
   @@map("merchant_branches")
@@ -487,12 +493,15 @@ model MerchantUser {
   merchantId String   @map("merchant_id") @db.Uuid
   userId     String   @map("user_id") @db.Uuid
   role       String   @default("owner")
+  branchId   String?  @map("branch_id") @db.Uuid
   createdAt  DateTime @default(now()) @map("created_at")
 
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  merchant Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch   MerchantBranch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   @@id([merchantId, userId])
+  @@index([userId])
   @@map("merchant_users")
 }
 
@@ -660,6 +669,13 @@ model Order {
   paymentMethod PaymentMethod @default(cash) @map("payment_method")
   paymentStatus PaymentStatus @default(pending) @map("payment_status")
 
+  // Cash-on-delivery: the merchandise amount the driver collects from the
+  // recipient. This is deliberately separate from `total` (the delivery fee).
+  codAmount      Decimal    @default(0) @map("cod_amount") @db.Decimal(14, 2)
+  codStatus      CodStatus  @default(none) @map("cod_status")
+  codCollectedAt DateTime?  @map("cod_collected_at")
+  codSettledAt   DateTime?  @map("cod_settled_at")
+
   notes              String?
   cancellationReason String?   @map("cancellation_reason")
   cancelledBy        String?   @map("cancelled_by")
@@ -694,6 +710,7 @@ model Order {
   @@index([tenantId, customerId])
   @@index([tenantId, driverId])
   @@index([tenantId, createdAt])
+  @@index([tenantId, merchantId, status])
   @@map("orders")
 }
 
@@ -940,6 +957,35 @@ model Settlement {
   @@map("settlements")
 }
 
+// Merchant settlement — a separate accounting domain from driver wallets.
+// Tracks what the platform owes the merchant for COD it collected on the
+// merchant's behalf, net of delivery fees and platform commission.
+model MerchantSettlement {
+  id               String           @id @default(uuid()) @db.Uuid
+  tenantId         String           @map("tenant_id") @db.Uuid
+  merchantId       String           @map("merchant_id") @db.Uuid
+  reference        String?          @unique
+  periodStart      DateTime         @map("period_start")
+  periodEnd        DateTime         @map("period_end")
+  orderCount       Int              @default(0) @map("order_count")
+  codCollected     Decimal          @default(0) @map("cod_collected") @db.Decimal(14, 2)
+  deliveryFees     Decimal          @default(0) @map("delivery_fees") @db.Decimal(14, 2)
+  commissionAmount Decimal          @default(0) @map("commission_amount") @db.Decimal(14, 2)
+  adjustments      Decimal          @default(0) @db.Decimal(14, 2)
+  netPayable       Decimal          @default(0) @map("net_payable") @db.Decimal(14, 2)
+  currency         String           @default("SAR")
+  status           SettlementStatus @default(pending)
+  paidAt           DateTime?        @map("paid_at")
+  notes            String?
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, merchantId, status])
+  @@map("merchant_settlements")
+}
+
 // ============================================================
 // COMMUNICATION
 // ============================================================
@@ -1007,6 +1053,7 @@ model NotificationLog {
 model SupportTicket {
   id               String         @id @default(uuid()) @db.Uuid
   tenantId         String         @map("tenant_id") @db.Uuid
+  merchantId       String?        @map("merchant_id") @db.Uuid
   customerId       String?        @map("customer_id") @db.Uuid
   orderId          String?        @map("order_id") @db.Uuid
   subject          String
@@ -1023,6 +1070,7 @@ model SupportTicket {
   complaints Complaint[]
 
   @@index([tenantId, status])
+  @@index([tenantId, merchantId])
   @@map("support_tickets")
 }
 
@@ -1260,6 +1308,16 @@ enum PaymentStatus {
   failed
   refunded
   partially_refunded
+  cancelled
+}
+
+// Cash-on-delivery lifecycle. `none` means the order carries no COD. The
+// collected → settled flow is distinct from the delivery-fee PaymentStatus.
+enum CodStatus {
+  none
+  pending
+  collected
+  settled
   cancelled
 }
 

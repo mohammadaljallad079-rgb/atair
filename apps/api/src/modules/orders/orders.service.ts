@@ -182,6 +182,8 @@ export class OrdersService {
         priceBreakdown: quote as any,
         paymentMethod: (dto.paymentMethod as any) ?? 'cash',
         paymentStatus: 'pending',
+        codAmount: dto.paymentMethod === 'cod' ? (dto.codAmount ?? 0) : 0,
+        codStatus: dto.paymentMethod === 'cod' ? 'pending' : 'none',
         discountId,
         notes: dto.notes,
         createdByUserId: actor.userId,
@@ -197,11 +199,24 @@ export class OrdersService {
               })),
             }
           : undefined,
+        deliveryAddress: dto.addresses?.length
+          ? {
+              create: dto.addresses.map((a) => ({
+                type: a.type,
+                address: a.address,
+                latitude: a.latitude,
+                longitude: a.longitude,
+                contactName: a.contactName,
+                contactPhone: a.contactPhone,
+                details: a.details,
+              })),
+            }
+          : undefined,
         statusHistory: {
           create: { toStatus: 'pending', changedByUserId: actor.userId, reason: 'order created' },
         },
       },
-      include: { items: true },
+      include: { items: true, deliveryAddress: true },
     });
 
     await this.audit.log({

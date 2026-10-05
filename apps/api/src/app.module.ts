@@ -10,6 +10,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
+import { MerchantBoundaryGuard } from './common/guards/merchant-boundary.guard';
 
 import { AuthModule } from './modules/auth/auth.module';
 import { AuditModule } from './modules/audit/audit.module';
@@ -30,6 +31,7 @@ import { SupportModule } from './modules/support/support.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { HealthModule } from './modules/health/health.module';
+import { MerchantPortalModule } from './modules/merchant-portal/merchant-portal.module';
 
 @Module({
   imports: [
@@ -57,11 +59,13 @@ import { HealthModule } from './modules/health/health.module';
     ReportsModule,
     SettingsModule,
     HealthModule,
+    MerchantPortalModule,
   ],
   providers: [
-    // Order matters: throttle → authenticate → authorize.
+    // Order matters: throttle → authenticate → merchant boundary → authorize.
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: MerchantBoundaryGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },

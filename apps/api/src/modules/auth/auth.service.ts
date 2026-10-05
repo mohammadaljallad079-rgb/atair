@@ -30,14 +30,20 @@ export class AuthService {
 
   /** Resolves roles + permissions for a user from the database (source of truth). */
   async resolveAuthorization(userId: string) {
-    const userRoles = await this.prisma.userRole.findMany({
-      where: { userId },
-      include: {
-        role: {
-          include: { rolePermissions: { include: { permission: true } } },
+    const [userRoles, merchantLinks] = await Promise.all([
+      this.prisma.userRole.findMany({
+        where: { userId },
+        include: {
+          role: {
+            include: { rolePermissions: { include: { permission: true } } },
+          },
         },
-      },
-    });
+      }),
+      this.prisma.merchantUser.findMany({
+        where: { userId, merchant: { status: { not: 'suspended' } } },
+        select: { merchantId: true, role: true, branchId: true },
+      }),
+    ]);
 
     const roles = userRoles.map((ur) => ur.role.slug);
     const permissions = Array.from(
@@ -46,7 +52,8 @@ export class AuthService {
       ),
     );
     const isPlatformAdmin = roles.includes('platform_admin');
-    return { roles, permissions, isPlatformAdmin };
+    const merchantIds = merchantLinks.map((m) => m.merchantId);
+    return { roles, permissions, isPlatformAdmin, merchantIds };
   }
 
   async login(identifier: string, password: string, meta: RequestMeta, tenantSlug?: string) {
@@ -118,6 +125,7 @@ export class AuthService {
         tenantSlug: user.tenant.slug,
         roles: auth.roles,
         permissions: auth.permissions,
+        merchantIds: auth.merchantIds,
       },
       ...tokens,
     };
@@ -126,7 +134,7 @@ export class AuthService {
   async issueTokens(
     userId: string,
     tenantId: string,
-    auth: { roles: string[]; permissions: string[]; isPlatformAdmin: boolean },
+    auth: { roles: string[]; permissions: string[]; isPlatformAdmin: boolean; merchantIds?: string[] },
     meta: RequestMeta,
   ): Promise<IssuedTokens> {
     const refreshTtlSeconds = this.ttlSeconds(this.config.get<string>('jwt.refreshTtl')!);
@@ -150,6 +158,7 @@ export class AuthService {
       roles: auth.roles,
       permissions: auth.permissions,
       isPlatformAdmin: auth.isPlatformAdmin,
+      merchantIds: auth.merchantIds ?? [],
     };
     const accessToken = await this.jwt.signAsync(payload, {
       secret: this.config.get<string>('jwt.accessSecret')!,

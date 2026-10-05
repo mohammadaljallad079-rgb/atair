@@ -10,6 +10,8 @@ export interface AuthUser {
   permissions: string[];
   sessionId: string;
   isPlatformAdmin: boolean;
+  /** Merchants the user belongs to, resolved from MerchantUser at login. */
+  merchantIds: string[];
 }
 
 /** Injects the authenticated user resolved from the verified access token. */

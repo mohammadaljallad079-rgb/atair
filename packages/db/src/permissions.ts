@@ -189,6 +189,76 @@ export const SYSTEM_ROLES: Record<string, { name: string; description: string; p
       P.support_view,
     ],
   },
+  // ---- Merchant Portal roles (business employees) -------------------------
+  // These are granted to users linked to a merchant via MerchantUser. They
+  // intentionally reuse the platform permission catalog; merchant data scoping
+  // is enforced separately by the MerchantBoundaryGuard + merchant-scoped
+  // queries, never by role-name checks.
+  merchant_owner: {
+    name: 'Merchant Owner',
+    description: 'Full control of a merchant account, including team and finance',
+    permissions: [
+      P.orders_view, P.orders_create, P.orders_update, P.orders_cancel,
+      P.customers_view, P.customers_create, P.customers_update,
+      P.pricing_view,
+      P.payments_view,
+      P.reports_view, P.reports_export,
+      P.support_view, P.support_manage,
+      P.notifications_view,
+      P.settings_view, P.settings_manage,
+      P.users_view, P.users_create, P.users_update, P.users_manage_roles,
+      P.tracking_view,
+    ],
+  },
+  merchant_manager: {
+    name: 'Merchant Manager',
+    description: 'Runs day-to-day merchant operations, branches and team',
+    permissions: [
+      P.orders_view, P.orders_create, P.orders_update, P.orders_cancel,
+      P.customers_view, P.customers_create, P.customers_update,
+      P.pricing_view,
+      P.payments_view,
+      P.reports_view, P.reports_export,
+      P.support_view, P.support_manage,
+      P.notifications_view,
+      P.settings_view,
+      P.users_view, P.users_create, P.users_update,
+      P.tracking_view,
+    ],
+  },
+  merchant_operator: {
+    name: 'Merchant Operator',
+    description: 'Creates and tracks deliveries',
+    permissions: [
+      P.orders_view, P.orders_create, P.orders_update,
+      P.customers_view, P.customers_create,
+      P.pricing_view,
+      P.support_view, P.support_manage,
+      P.notifications_view,
+      P.tracking_view,
+    ],
+  },
+  merchant_finance: {
+    name: 'Merchant Finance',
+    description: 'Views merchant payments, COD and settlements',
+    permissions: [
+      P.orders_view,
+      P.payments_view,
+      P.reports_view, P.reports_export,
+      P.support_view,
+      P.notifications_view,
+    ],
+  },
+  merchant_viewer: {
+    name: 'Merchant Viewer',
+    description: 'Read-only access to merchant orders and reports',
+    permissions: [
+      P.orders_view,
+      P.reports_view,
+      P.support_view,
+      P.notifications_view,
+    ],
+  },
   driver: {
     name: 'Driver',
     description: 'Driver application access',

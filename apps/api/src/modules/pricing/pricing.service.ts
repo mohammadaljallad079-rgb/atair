@@ -136,14 +136,25 @@ export class PricingService {
   /** Loads the most specific active rules matching the request context. */
   private async loadApplicableRules(tenantId: string, ctx: QuoteDto): Promise<PricingRuleInput[]> {
     const now = new Date();
+    // A rule scoped to a zone/merchant/vehicle applies only when the request
+    // carries that scope; otherwise only unscoped (null) rules apply. The
+    // clauses are written out explicitly because Prisma treats a `field:
+    // undefined` value inside an OR as "match nothing", which silently dropped
+    // every rule when the scope was absent.
     const rules = await this.prisma.pricingRule.findMany({
       where: {
         tenantId,
         isActive: true,
         AND: [
-          { OR: [{ zoneId: null }, { zoneId: ctx.zoneId ?? undefined }] },
-          { OR: [{ merchantId: null }, { merchantId: ctx.merchantId ?? undefined }] },
-          { OR: [{ vehicleTypeId: null }, { vehicleTypeId: ctx.vehicleTypeId ?? undefined }] },
+          ctx.zoneId
+            ? { OR: [{ zoneId: null }, { zoneId: ctx.zoneId }] }
+            : { zoneId: null },
+          ctx.merchantId
+            ? { OR: [{ merchantId: null }, { merchantId: ctx.merchantId }] }
+            : { merchantId: null },
+          ctx.vehicleTypeId
+            ? { OR: [{ vehicleTypeId: null }, { vehicleTypeId: ctx.vehicleTypeId }] }
+            : { vehicleTypeId: null },
           { OR: [{ validFrom: null }, { validFrom: { lte: now } }] },
           { OR: [{ validTo: null }, { validTo: { gte: now } }] },
         ],

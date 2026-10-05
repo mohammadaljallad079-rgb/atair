@@ -37,6 +37,31 @@ export class OrderItemDto {
   weightKg?: number;
 }
 
+export class OrderAddressDto {
+  @ApiProperty({ enum: ['pickup', 'dropoff'] })
+  @IsIn(['pickup', 'dropoff'])
+  type!: 'pickup' | 'dropoff';
+
+  @ApiProperty()
+  @IsString() @IsNotEmpty() @MaxLength(400)
+  address!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @Type(() => Number) @IsNumber() latitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional() @Type(() => Number) @IsNumber() longitude?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(120) contactName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(40) contactPhone?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(500) details?: string;
+}
+
 export class CreateOrderDto {
   @ApiPropertyOptional()
   @IsOptional() @IsUUID() customerId?: string;
@@ -89,6 +114,14 @@ export class CreateOrderDto {
 
   @ApiPropertyOptional({ description: 'ISO date for scheduled delivery' })
   @IsOptional() @IsString() scheduledPickupAt?: string;
+
+  @ApiPropertyOptional({ description: 'Merchandise amount collected on delivery (COD only)' })
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  codAmount?: number;
+
+  @ApiPropertyOptional({ type: [OrderAddressDto] })
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => OrderAddressDto)
+  addresses?: OrderAddressDto[];
 
   @ApiPropertyOptional({ description: 'Client-estimated distance in km; server recomputes' })
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0)

@@ -11,6 +11,8 @@ export interface JwtPayload {
   roles: string[];
   permissions: string[];
   isPlatformAdmin: boolean;
+  /** Merchants this user belongs to (MerchantUser links), resolved at login. */
+  merchantIds?: string[];
 }
 
 @Injectable()
@@ -36,6 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       permissions: payload.permissions ?? [],
       sessionId: payload.sid,
       isPlatformAdmin: payload.isPlatformAdmin ?? false,
+      merchantIds: payload.merchantIds ?? [],
     } as AuthUser;
   }
 }

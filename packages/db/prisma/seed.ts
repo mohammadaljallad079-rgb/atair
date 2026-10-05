@@ -143,16 +143,24 @@ async function main() {
     }
   }
 
-  // Default service zone + pricing rule for demo tenant
+  // Default service zone + pricing rule for demo tenant. The polygon is
+  // required for zone resolution (and therefore zone-scoped pricing) to work.
+  const riyadhPolygon = [
+    [46.3, 24.4],
+    [47.0, 24.4],
+    [47.0, 25.1],
+    [46.3, 25.1],
+  ];
   const zone = await prisma.serviceZone.upsert({
     where: { tenantId_code: { tenantId: demoTenant.id, code: 'RIYADH' } },
-    update: {},
+    update: { polygon: riyadhPolygon },
     create: {
       tenantId: demoTenant.id,
       name: 'الرياض',
       code: 'RIYADH',
       centerLat: 24.7136,
       centerLng: 46.6753,
+      polygon: riyadhPolygon,
     },
   });
 
@@ -213,9 +221,361 @@ async function main() {
   console.log('   Platform admin: root@atair.local / ChangeMe123!');
   console.log('   Tenant admin:   admin@atair.local / ChangeMe123!');
   console.log('   Dispatcher:     dispatcher@atair.local / ChangeMe123!');
+  console.log('   Merchant owner: owner@atair.local / ChangeMe123!  (merchant: atair-store)');
+}
+
+// ============================================================
+// Merchant portal demo data — deterministic and idempotent.
+// ============================================================
+async function seedMerchantDemo(
+  tenantId: string,
+  roles: Record<string, string>,
+  passwordHash: string,
+) {
+  const merchant = await prisma.merchant.upsert({
+    where: { tenantId_slug: { tenantId, slug: 'atair-store' } },
+    update: {},
+    create: {
+      tenantId,
+      name: 'متجر عَ الطاير',
+      slug: 'atair-store',
+      category: 'retail',
+      phone: '+966500000100',
+      email: 'store@atair.local',
+      status: 'active',
+      commissionRate: 10,
+      settings: {
+        currency: 'SAR',
+        contactName: 'خالد التاجر',
+        contactPhone: '+966500000100',
+        contactEmail: 'store@atair.local',
+        defaultPickupAddress: 'مستودع الرياض، طريق الملك فهد',
+        invoiceVatNumber: '310123456700003',
+        language: 'ar',
+        notifyOnStatus: true,
+      },
+    },
+  });
+
+  let branchMain = await prisma.merchantBranch.findFirst({
+    where: { merchantId: merchant.id, name: 'الفرع الرئيسي — الرياض' },
+  });
+  if (!branchMain) {
+    branchMain = await prisma.merchantBranch.create({
+      data: {
+        tenantId,
+        merchantId: merchant.id,
+        name: 'الفرع الرئيسي — الرياض',
+        address: 'طريق الملك فهد، الرياض',
+        latitude: 24.7136,
+        longitude: 46.6753,
+        phone: '+966500000100',
+        status: 'active',
+      },
+    });
+  }
+  let branchNorth = await prisma.merchantBranch.findFirst({
+    where: { merchantId: merchant.id, name: 'فرع شمال الرياض' },
+  });
+  if (!branchNorth) {
+    branchNorth = await prisma.merchantBranch.create({
+      data: {
+        tenantId,
+        merchantId: merchant.id,
+        name: 'فرع شمال الرياض',
+        address: 'حي النرجس، الرياض',
+        latitude: 24.8607,
+        longitude: 46.6374,
+        phone: '+966500000101',
+        status: 'active',
+      },
+    });
+  }
+
+  // Merchant team
+  const owner = await prisma.user.upsert({
+    where: { tenantId_email: { tenantId, email: 'owner@atair.local' } },
+    update: {},
+    create: {
+      tenantId,
+      email: 'owner@atair.local',
+      phone: '+966500000110',
+      fullName: 'خالد التاجر',
+      passwordHash,
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: owner.id, roleId: roles.merchant_owner } },
+    update: {},
+    create: { userId: owner.id, roleId: roles.merchant_owner },
+  });
+  await prisma.merchantUser.upsert({
+    where: { merchantId_userId: { merchantId: merchant.id, userId: owner.id } },
+    update: { role: 'owner', branchId: branchMain.id },
+    create: { merchantId: merchant.id, userId: owner.id, role: 'owner', branchId: branchMain.id },
+  });
+
+  const finance = await prisma.user.upsert({
+    where: { tenantId_email: { tenantId, email: 'finance@atair.local' } },
+    update: {},
+    create: {
+      tenantId,
+      email: 'finance@atair.local',
+      phone: '+966500000111',
+      fullName: 'سارة المحاسبة',
+      passwordHash,
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: finance.id, roleId: roles.merchant_finance } },
+    update: {},
+    create: { userId: finance.id, roleId: roles.merchant_finance },
+  });
+  await prisma.merchantUser.upsert({
+    where: { merchantId_userId: { merchantId: merchant.id, userId: finance.id } },
+    update: { role: 'finance', branchId: branchMain.id },
+    create: { merchantId: merchant.id, userId: finance.id, role: 'finance', branchId: branchMain.id },
+  });
+
+  const operator = await prisma.user.upsert({
+    where: { tenantId_email: { tenantId, email: 'operator@atair.local' } },
+    update: {},
+    create: {
+      tenantId,
+      email: 'operator@atair.local',
+      phone: '+966500000112',
+      fullName: 'عمر المشغّل',
+      passwordHash,
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: operator.id, roleId: roles.merchant_operator } },
+    update: {},
+    create: { userId: operator.id, roleId: roles.merchant_operator },
+  });
+  await prisma.merchantUser.upsert({
+    where: { merchantId_userId: { merchantId: merchant.id, userId: operator.id } },
+    update: { role: 'operator', branchId: branchNorth.id },
+    create: { merchantId: merchant.id, userId: operator.id, role: 'operator', branchId: branchNorth.id },
+  });
+
+  // A second merchant (isolation demo) with its own owner and orders.
+  const rival = await prisma.merchant.upsert({
+    where: { tenantId_slug: { tenantId, slug: 'rival-store' } },
+    update: {},
+    create: {
+      tenantId,
+      name: 'متجر المنافس',
+      slug: 'rival-store',
+      category: 'retail',
+      phone: '+966500000200',
+      email: 'rival@atair.local',
+      status: 'active',
+      commissionRate: 12,
+      settings: { currency: 'SAR' },
+    },
+  });
+  const rivalOwner = await prisma.user.upsert({
+    where: { tenantId_email: { tenantId, email: 'rival@atair.local' } },
+    update: {},
+    create: {
+      tenantId,
+      email: 'rival@atair.local',
+      phone: '+966500000210',
+      fullName: 'فهد المنافس',
+      passwordHash,
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: rivalOwner.id, roleId: roles.merchant_owner } },
+    update: {},
+    create: { userId: rivalOwner.id, roleId: roles.merchant_owner },
+  });
+  await prisma.merchantUser.upsert({
+    where: { merchantId_userId: { merchantId: rival.id, userId: rivalOwner.id } },
+    update: { role: 'owner' },
+    create: { merchantId: rival.id, userId: rivalOwner.id, role: 'owner' },
+  });
+
+  // Merchant customers
+  const customerSeeds = [
+    { fullName: 'محمد العتيبي', phone: '+966500000301', email: 'mohammed@example.com' },
+    { fullName: 'نورة القحطاني', phone: '+966500000302', email: 'noura@example.com' },
+    { fullName: 'عبدالله الشمري', phone: '+966500000303', email: 'abdullah@example.com' },
+    { fullName: 'ريم الدوسري', phone: '+966500000304', email: 'reem@example.com' },
+    { fullName: 'سلمان الحربي', phone: '+966500000305', email: 'salman@example.com' },
+  ];
+  const customers: Array<{ id: string; fullName: string; phone: string }> = [];
+  for (const c of customerSeeds) {
+    const existing = await prisma.customer.findFirst({ where: { tenantId, merchantId: merchant.id, phone: c.phone } });
+    const customer =
+      existing ??
+      (await prisma.customer.create({
+        data: { tenantId, merchantId: merchant.id, ...c },
+      }));
+    customers.push({ id: customer.id, fullName: customer.fullName, phone: customer.phone });
+  }
+  // Addresses for the first customer
+  const hasAddress = await prisma.customerAddress.findFirst({ where: { customerId: customers[0].id } });
+  if (!hasAddress) {
+    await prisma.customerAddress.createMany({
+      data: [
+        {
+          tenantId,
+          customerId: customers[0].id,
+          label: 'home',
+          address: 'حي العليا، شارع التخصصي، الرياض',
+          latitude: 24.6949,
+          longitude: 46.6853,
+          isDefault: true,
+        },
+        {
+          tenantId,
+          customerId: customers[0].id,
+          label: 'work',
+          address: 'مركز الملك عبدالله المالي، الرياض',
+          latitude: 24.7611,
+          longitude: 46.6428,
+          isDefault: false,
+        },
+      ],
+    });
+  }
+
+  // Merchant orders across the lifecycle (deterministic by orderNumber).
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const orderSeeds: Array<{
+    orderNumber: string;
+    status: string;
+    paymentMethod: string;
+    codAmount: number;
+    total: number;
+    customerIndex: number;
+    branchId: string;
+    createdDaysAgo: number;
+    delivered?: boolean;
+  }> = [
+    { orderNumber: 'MER-1001', status: 'delivered', paymentMethod: 'cod', codAmount: 250, total: 22.5, customerIndex: 0, branchId: branchMain.id, createdDaysAgo: 6, delivered: true },
+    { orderNumber: 'MER-1002', status: 'delivered', paymentMethod: 'card', codAmount: 0, total: 18, customerIndex: 1, branchId: branchMain.id, createdDaysAgo: 5, delivered: true },
+    { orderNumber: 'MER-1003', status: 'delivered', paymentMethod: 'cod', codAmount: 480, total: 27.75, customerIndex: 2, branchId: branchNorth.id, createdDaysAgo: 4, delivered: true },
+    { orderNumber: 'MER-1004', status: 'in_transit', paymentMethod: 'cod', codAmount: 320, total: 24, customerIndex: 3, branchId: branchMain.id, createdDaysAgo: 1 },
+    { orderNumber: 'MER-1005', status: 'assigned', paymentMethod: 'cash', codAmount: 0, total: 15.5, customerIndex: 4, branchId: branchNorth.id, createdDaysAgo: 1 },
+    { orderNumber: 'MER-1006', status: 'searching_driver', paymentMethod: 'cod', codAmount: 175, total: 20, customerIndex: 0, branchId: branchMain.id, createdDaysAgo: 0 },
+    { orderNumber: 'MER-1007', status: 'pending', paymentMethod: 'online', codAmount: 0, total: 19.25, customerIndex: 1, branchId: branchMain.id, createdDaysAgo: 0 },
+    { orderNumber: 'MER-1008', status: 'cancelled', paymentMethod: 'cash', codAmount: 0, total: 12, customerIndex: 2, branchId: branchNorth.id, createdDaysAgo: 3 },
+    { orderNumber: 'MER-1009', status: 'failed_delivery', paymentMethod: 'cod', codAmount: 210, total: 21, customerIndex: 3, branchId: branchMain.id, createdDaysAgo: 2 },
+  ];
+
+  for (const o of orderSeeds) {
+    const createdAt = new Date(now - o.createdDaysAgo * day);
+    const codStatus = o.paymentMethod !== 'cod' ? 'none' : o.status === 'delivered' ? 'collected' : 'pending';
+    await prisma.order.upsert({
+      where: { tenantId_orderNumber: { tenantId, orderNumber: o.orderNumber } },
+      update: {},
+      create: {
+        tenantId,
+        orderNumber: o.orderNumber,
+        merchantId: merchant.id,
+        merchantBranchId: o.branchId,
+        customerId: customers[o.customerIndex].id,
+        status: o.status as any,
+        deliveryType: 'immediate',
+        pickupAddress: 'مستودع الرياض، طريق الملك فهد',
+        pickupLat: 24.7136,
+        pickupLng: 46.6753,
+        dropoffAddress: `حي ${['العليا', 'النرجس', 'الملز', 'الروضة', 'الياسمين'][o.customerIndex]}، الرياض`,
+        dropoffLat: 24.7 + o.customerIndex * 0.02,
+        dropoffLng: 46.68 - o.customerIndex * 0.01,
+        distanceKm: 4 + o.customerIndex * 1.5,
+        estimatedDurationMin: 15 + o.customerIndex * 4,
+        subtotal: o.total - 3,
+        taxAmount: 0,
+        surchargeAmount: 3,
+        total: o.total,
+        currency: 'SAR',
+        paymentMethod: o.paymentMethod as any,
+        paymentStatus: o.delivered ? 'paid' : 'pending',
+        codAmount: o.codAmount,
+        codStatus: codStatus as any,
+        codCollectedAt: codStatus === 'collected' ? createdAt : null,
+        createdByUserId: owner.id,
+        createdAt,
+        confirmedAt: o.status !== 'pending' ? createdAt : null,
+        assignedAt: ['assigned', 'in_transit', 'delivered'].includes(o.status) ? createdAt : null,
+        pickedUpAt: ['in_transit', 'delivered'].includes(o.status) ? createdAt : null,
+        deliveredAt: o.delivered ? createdAt : null,
+        statusHistory: {
+          create: [{ toStatus: 'pending', changedByUserId: owner.id, reason: 'order created', createdAt }],
+        },
+      },
+    });
+  }
+
+  // Merchant settlement for the previous period (collected COD, net payable).
+  const existingSettlement = await prisma.merchantSettlement.findFirst({
+    where: { merchantId: merchant.id, reference: 'MS-2026-001' },
+  });
+  if (!existingSettlement) {
+    const periodEnd = new Date(now - 2 * day);
+    const periodStart = new Date(now - 9 * day);
+    await prisma.merchantSettlement.create({
+      data: {
+        tenantId,
+        merchantId: merchant.id,
+        reference: 'MS-2026-001',
+        periodStart,
+        periodEnd,
+        orderCount: 3,
+        codCollected: 730,
+        deliveryFees: 68.25,
+        commissionAmount: 73,
+        adjustments: 0,
+        netPayable: 730 - 73,
+        currency: 'SAR',
+        status: 'pending',
+      },
+    });
+  }
+
+  // Merchant support tickets
+  const existingTicket = await prisma.supportTicket.findFirst({
+    where: { merchantId: merchant.id, subject: 'تأخير في استلام شحنة' },
+  });
+  if (!existingTicket) {
+    await prisma.supportTicket.create({
+      data: {
+        tenantId,
+        merchantId: merchant.id,
+        subject: 'تأخير في استلام شحنة',
+        description: 'الشحنة رقم MER-1004 تأخر السائق عن موعد الاستلام.',
+        status: 'open',
+        priority: 'high',
+        messages: {
+          create: {
+            senderType: 'merchant',
+            senderId: owner.id,
+            body: 'نرجو المتابعة مع السائق بأسرع وقت.',
+          },
+        },
+      },
+    });
+  }
 }
 
 main()
+  .then(async () => {
+    // Re-resolve tenants/roles needed for the merchant demo pass.
+    const demoTenant = await prisma.tenant.findUnique({ where: { slug: 'atair-demo' } });
+    if (demoTenant) {
+      const roleRows = await prisma.role.findMany({ where: { tenantId: demoTenant.id } });
+      const roles: Record<string, string> = {};
+      for (const r of roleRows) roles[r.slug] = r.id;
+      const passwordHash = await bcrypt.hash('ChangeMe123!', 12);
+      await seedMerchantDemo(demoTenant.id, roles, passwordHash);
+      console.log('   Merchant demo data: atair-store + rival-store seeded');
+    }
+  })
   .catch((e) => {
     console.error(e);
     process.exit(1);
