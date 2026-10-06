@@ -7,7 +7,7 @@ import { useI18n } from '@/i18n/provider';
 import { ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Field, TextInput } from '@/components/ui/field';
-import { BrandMark } from '@/components/layout/sidebar';
+import { BrandLogo } from '@/components/brand/brand-logo';
 
 export default function LoginPage() {
   const { login, status } = useAuth();
@@ -46,7 +46,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-ink-50 p-4">
       <div className="w-full max-w-sm">
         <div className="mb-5 flex items-center justify-between">
-          <BrandMark />
+          <BrandLogo variant="login" />
           <div className="inline-flex overflow-hidden rounded-lg border border-slate-200">
             {(['ar', 'en'] as const).map((l) => (
               <button

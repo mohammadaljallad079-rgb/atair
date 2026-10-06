@@ -7,26 +7,7 @@ import { useAuth } from '@/lib/auth-provider';
 import { useI18n } from '@/i18n/provider';
 import { cn } from '@/lib/cn';
 import { Icon } from './icon';
-
-/** Brand wordmark. The real logo asset is not present in the repo, so this is
- *  an explicit text placeholder with a brand-colored mark — swap the mark for
- *  the real asset without touching any other component. */
-export function BrandMark({ compact }: { compact?: boolean }) {
-  const { t } = useI18n();
-  return (
-    <div className="flex items-center gap-2">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-ink-700 text-sm font-bold text-white shadow-sm">
-        ع
-      </span>
-      {!compact && (
-        <span className="leading-tight">
-          <span className="block text-sm font-bold text-slate-900">{t('app.name')}</span>
-          <span className="block text-[11px] text-slate-400">{t('app.tagline')}</span>
-        </span>
-      )}
-    </div>
-  );
-}
+import { BrandLogo } from '@/components/brand/brand-logo';
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -36,7 +17,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="flex h-full flex-col gap-4 overflow-y-auto p-3" aria-label="main">
       <div className="px-2 pt-2">
-        <BrandMark />
+        <BrandLogo variant="navigation" />
       </div>
       {NAV_GROUPS.map((group) => {
         const items = group.items.filter((i) => !i.permission || can(i.permission));

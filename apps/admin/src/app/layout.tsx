@@ -5,6 +5,10 @@ import { Providers } from './providers';
 export const metadata: Metadata = {
   title: 'عَ الطاير — مركز التحكم | Al-Tayer Control Center',
   description: 'Al-Tayer logistics & last-mile delivery admin control center',
+  icons: {
+    icon: '/favicon-32.png',
+    apple: '/apple-touch-icon.png',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

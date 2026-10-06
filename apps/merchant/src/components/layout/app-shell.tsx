@@ -9,6 +9,7 @@ import { Locale } from '@/i18n/dictionary';
 import { Sidebar } from './sidebar';
 import { Icon } from './icon';
 import { cn } from '@/lib/cn';
+import { BrandLogo } from '@/components/brand/brand-logo';
 
 function LanguageSwitch() {
   const { locale, setLocale } = useI18n();
@@ -151,6 +152,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Icon name="grid" />
             </button>
+            <BrandLogo variant="compact" className="lg:hidden" />
             <span className="text-sm font-semibold text-slate-800">{t('app.tagline')}</span>
           </div>
           <div className="flex items-center gap-2">

@@ -71,3 +71,14 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 ## Pricing guard (zero-fare hole)
 - `PricingService.quote` throws `409 PRICING_UNAVAILABLE` when `PricingEngine.selectRule` returns null. The order-create paths (admin + merchant) already guarded before persisting; the admin `/pricing/quote` preview is guarded too, and the admin pricing page renders `pricing.noRule` for that code. Never return a silent `total: 0` quote.
 - Rules can be scoped by zone/merchant/vehicleType. `loadApplicableRules` matches only `null`-scoped rules unless the request carries the scope, so a zone-scoped rule (e.g. the seeded Riyadh rule) requires the caller to pass `zoneId` (or coordinates the server resolves to a zone).
+
+## Brand asset (official)
+- The supplied عَ الطاير logo is the **official project brand asset**. Do not replace, redesign, recolor, re-crop, or mirror it without explicit instruction.
+- Source of truth: `public/assets/brand/logo-original.jpeg` (monorepo central copy, kept byte-for-byte identical to the supplied file). Never edit or overwrite it.
+- Derived, faithful crops of the official art (generated once, not redrawn) live alongside it and in each app's `public/assets/brand/`:
+  - `logo-full.{webp,png}` — bird + Arabic wordmark, used for login/branding moments.
+  - `logo-mark.{webp,png}` — bird only, used for navigation/compact marks.
+  - `favicon-32.png`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` (from `icon-180.png`) — app icons/favicons derived from the bird on its light-blue background.
+- All UI branding goes through the shared `BrandLogo` component (`apps/{admin,merchant}/src/components/brand/brand-logo.tsx`, variants `login | full | navigation | compact`). Do not inline the image in pages.
+- The artwork must never be mirrored in RTL: only the surrounding layout flips (`dir`), never the logo (`transform` stays `none`).
+- The route-guard middleware must keep excluding static file extensions (`png|jpg|jpeg|webp|svg|ico|gif`) so brand assets/favicons load on the public login screen.
