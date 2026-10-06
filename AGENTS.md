@@ -78,7 +78,7 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Derived, faithful crops of the official art (generated once, not redrawn) live alongside it and in each app's `public/assets/brand/`:
   - `logo-full.{webp,png}` — bird + Arabic wordmark, used for login/branding moments.
   - `logo-mark.{webp,png}` — bird only, used for navigation/compact marks.
-  - `favicon-32.png`, `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` (from `icon-180.png`) — app icons/favicons derived from the bird on its light-blue background.
+  - `favicon-32.png`, `favicon.ico` (16/32/48), `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` (from `icon-180.png`) — app icons/favicons derived from the bird on its light-blue background. Regenerate reproducibly with `python3 public/assets/brand/make_assets.py`; never hand-drawn.
 - All UI branding goes through the shared `BrandLogo` component (`apps/{admin,merchant}/src/components/brand/brand-logo.tsx`, variants `login | full | navigation | compact`). Do not inline the image in pages.
 - The artwork must never be mirrored in RTL: only the surrounding layout flips (`dir`), never the logo (`transform` stays `none`).
 - The route-guard middleware must keep excluding static file extensions (`png|jpg|jpeg|webp|svg|ico|gif`) so brand assets/favicons load on the public login screen.
