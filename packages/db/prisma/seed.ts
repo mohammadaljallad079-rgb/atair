@@ -49,6 +49,14 @@ async function seedPermissionsAndRoles(tenantId: string | null) {
       });
     }
     roles[slug] = role.id;
+    // Reconcile the role's permissions to the catalog exactly: add what is
+    // missing and remove grants no longer declared (e.g. `customer` no longer
+    // carries payments.view). This keeps the catalog the single source of truth
+    // even on an existing database.
+    const desiredPermissionIds = def.permissions.map((code) => permissionIds[code]);
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: role.id, permissionId: { notIn: desiredPermissionIds } },
+    });
     for (const code of def.permissions) {
       await prisma.rolePermission.upsert({
         where: { roleId_permissionId: { roleId: role.id, permissionId: permissionIds[code] } },
