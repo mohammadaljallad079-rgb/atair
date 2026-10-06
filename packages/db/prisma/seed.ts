@@ -23,7 +23,10 @@ async function seedPermissionsAndRoles(tenantId: string | null) {
 
   const roles: Record<string, string> = {};
   for (const [slug, def] of Object.entries(SYSTEM_ROLES)) {
-    // Platform admin role is global; the rest are tenant-scoped templates.
+    // Platform admin is the only global role. Every other role is a
+    // tenant-scoped template; creating them under a null tenant would
+    // duplicate each slug across the global and tenant scopes.
+    if (slug !== 'platform_admin' && tenantId === null) continue;
     // A nullable compound-unique cannot be addressed via `where`, so the
     // global (tenantId = null) role is looked up manually.
     const roleTenantId = slug === 'platform_admin' ? null : tenantId;
@@ -563,6 +566,175 @@ async function seedMerchantDemo(
   }
 }
 
+// ============================================================
+// Operations demo data — fleet, payments, wallets, notifications.
+// Deterministic and idempotent so the Admin Control Center renders
+// real rows across Operations/Drivers/Vehicles/Payments/Wallets.
+// ============================================================
+async function seedOperationsDemo(tenantId: string) {
+  const now = Date.now();
+
+  const types = await prisma.vehicleType.findMany({ where: { tenantId: null } });
+  const typeBySlug = new Map(types.map((t) => [t.slug, t.id]));
+
+  const driverSeeds: Array<{
+    fullName: string;
+    phone: string;
+    status: 'online' | 'busy' | 'offline' | 'paused' | 'suspended';
+    verificationStatus: 'verified' | 'pending' | 'rejected';
+    rating: number;
+    completedOrders: number;
+    cancelledOrders: number;
+    totalEarnings: number;
+    plate: string;
+    vehicleType: string;
+    make: string;
+    model: string;
+    year: number;
+    color: string;
+    lat: number;
+    lng: number;
+  }> = [
+    { fullName: 'سعد الغامدي', phone: '+966500000401', status: 'online', verificationStatus: 'verified', rating: 4.9, completedOrders: 342, cancelledOrders: 8, totalEarnings: 18650.5, plate: 'ر ط ح 4821', vehicleType: 'motorcycle', make: 'هوندا', model: 'CB150', year: 2023, color: 'أسود', lat: 24.7136, lng: 46.6753 },
+    { fullName: 'ماجد العسيري', phone: '+966500000402', status: 'busy', verificationStatus: 'verified', rating: 4.7, completedOrders: 298, cancelledOrders: 12, totalEarnings: 15230, plate: 'ب س د 1190', vehicleType: 'car', make: 'تويوتا', model: 'كامري', year: 2022, color: 'أبيض', lat: 24.7611, lng: 46.6428 },
+    { fullName: 'تركي الشهري', phone: '+966500000403', status: 'online', verificationStatus: 'pending', rating: 4.5, completedOrders: 120, cancelledOrders: 5, totalEarnings: 6120.75, plate: 'ح ن م 7745', vehicleType: 'van', make: 'نيسان', model: 'أورفان', year: 2021, color: 'فضي', lat: 24.6949, lng: 46.6853 },
+    { fullName: 'بندر القحطاني', phone: '+966500000404', status: 'offline', verificationStatus: 'verified', rating: 4.8, completedOrders: 410, cancelledOrders: 9, totalEarnings: 22140, plate: 'ع ق ر 3367', vehicleType: 'truck', make: 'إيسوزو', model: 'NPR', year: 2020, color: 'أزرق', lat: 24.8607, lng: 46.6374 },
+    { fullName: 'فهد الدوسري', phone: '+966500000405', status: 'suspended', verificationStatus: 'rejected', rating: 3.9, completedOrders: 54, cancelledOrders: 21, totalEarnings: 2140.25, plate: 'ط ل ص 9024', vehicleType: 'motorcycle', make: 'ياماها', model: 'FZ', year: 2019, color: 'أحمر', lat: 24.7, lng: 46.68 },
+  ];
+
+  for (const d of driverSeeds) {
+    const driver = await prisma.driver.upsert({
+      where: { tenantId_phone: { tenantId, phone: d.phone } },
+      update: {},
+      create: {
+        tenantId,
+        fullName: d.fullName,
+        phone: d.phone,
+        email: `${d.phone.replace('+', '')}@atair.local`,
+        status: d.status,
+        verificationStatus: d.verificationStatus,
+        isAvailable: d.status === 'online',
+        rating: d.rating,
+        completedOrders: d.completedOrders,
+        cancelledOrders: d.cancelledOrders,
+        totalEarnings: d.totalEarnings,
+        nationalId: `10${Math.floor(10000000 + Math.random() * 89999999)}`,
+        lastLocationAt: new Date(now - 3 * 60 * 1000),
+      },
+    });
+
+    const plate = d.plate;
+    let vehicle = await prisma.vehicle.findFirst({ where: { tenantId, plateNumber: plate } });
+    if (!vehicle) {
+      vehicle = await prisma.vehicle.create({
+        data: {
+          tenantId,
+          vehicleTypeId: typeBySlug.get(d.vehicleType) ?? null,
+          plateNumber: plate,
+          make: d.make,
+          model: d.model,
+          year: d.year,
+          color: d.color,
+          status: d.status === 'suspended' ? 'maintenance' : 'active',
+        },
+      });
+    }
+    await prisma.driverVehicle.upsert({
+      where: { driverId_vehicleId: { driverId: driver.id, vehicleId: vehicle.id } },
+      update: {},
+      create: { driverId: driver.id, vehicleId: vehicle.id },
+    });
+
+    const wallet = await prisma.driverWallet.upsert({
+      where: { driverId: driver.id },
+      update: {},
+      create: {
+        tenantId,
+        driverId: driver.id,
+        balance: d.totalEarnings * 0.25,
+        pending: d.status === 'busy' ? 42.5 : 0,
+        currency: 'SAR',
+      },
+    });
+    const hasTx = await prisma.walletTransaction.findFirst({ where: { walletId: wallet.id } });
+    if (!hasTx) {
+      const balance = Number(wallet.balance);
+      await prisma.walletTransaction.create({
+        data: {
+          tenantId,
+          walletId: wallet.id,
+          type: 'credit',
+          amount: balance,
+          balanceAfter: balance,
+          reference: `driver:${driver.id}`,
+          description: `أرباح مُسوّاة — ${d.fullName}`,
+        },
+      });
+    }
+  }
+
+  // Payments for the delivered demo orders (one per order, idempotent by key).
+  const paidOrders = await prisma.order.findMany({
+    where: { tenantId, orderNumber: { in: ['MER-1001', 'MER-1002', 'MER-1003'] } },
+    include: { merchant: true },
+  });
+  for (const o of paidOrders) {
+    const idempotencyKey = `seed-payment:${o.orderNumber}`;
+    const existing = await prisma.payment.findUnique({ where: { idempotencyKey } });
+    if (existing) continue;
+    await prisma.payment.create({
+      data: {
+        tenantId,
+        orderId: o.id,
+        customerId: o.customerId,
+        amount: o.total,
+        currency: o.currency,
+        method: o.paymentMethod,
+        status: 'paid',
+        provider: 'cash',
+        idempotencyKey,
+        meta: { orderNumber: o.orderNumber, merchant: o.merchant?.name ?? null },
+        transactions: {
+          create: {
+            tenantId,
+            type: 'charge',
+            amount: o.total,
+            status: 'paid',
+            provider: 'cash',
+          },
+        },
+      },
+    });
+  }
+
+  // In-app notifications for the tenant admin.
+  const admin = await prisma.user.findFirst({ where: { tenantId, email: 'admin@atair.local' } });
+  if (admin) {
+    const notifSeeds = [
+      { title: 'طلب جديد بانتظار سائق', body: 'الطلب MER-1006 بانتظار تعيين سائق.', status: 'sent', templateCode: 'order.created' },
+      { title: 'تم تسليم طلب', body: 'تم تسليم الطلب MER-1001 بنجاح.', status: 'read', templateCode: 'order.delivered' },
+      { title: 'دفعة COD معلّقة', body: 'يوجد مبلغ دفع عند التسليم معلّق للطلب MER-1004.', status: 'queued', templateCode: null },
+    ];
+    for (const n of notifSeeds) {
+      const exists = await prisma.notification.findFirst({ where: { tenantId, userId: admin.id, title: n.title } });
+      if (exists) continue;
+      await prisma.notification.create({
+        data: {
+          tenantId,
+          userId: admin.id,
+          templateCode: n.templateCode,
+          channel: 'in_app',
+          title: n.title,
+          body: n.body,
+          status: n.status as any,
+          sentAt: n.status === 'sent' || n.status === 'read' ? new Date(now - 60 * 60 * 1000) : null,
+          readAt: n.status === 'read' ? new Date(now - 30 * 60 * 1000) : null,
+        },
+      });
+    }
+  }
+}
+
 main()
   .then(async () => {
     // Re-resolve tenants/roles needed for the merchant demo pass.
@@ -574,6 +746,8 @@ main()
       const passwordHash = await bcrypt.hash('ChangeMe123!', 12);
       await seedMerchantDemo(demoTenant.id, roles, passwordHash);
       console.log('   Merchant demo data: atair-store + rival-store seeded');
+      await seedOperationsDemo(demoTenant.id);
+      console.log('   Operations demo data: drivers, fleet, payments, wallets, notifications seeded');
     }
   })
   .catch((e) => {

@@ -22,11 +22,11 @@ export default function MerchantsPage() {
 
   const columns: Column<Merchant>[] = [
     { key: 'name', header: t('merchants.name'), render: (r) => <span className="font-medium text-slate-800">{r.name}</span> },
-    { key: 'slug', header: 'Slug', render: (r) => <span dir="ltr" className="text-xs text-slate-500">{r.slug}</span> },
+    { key: 'slug', header: t('common.slug'), render: (r) => <span dir="ltr" className="text-xs text-slate-500">{r.slug}</span> },
     { key: 'category', header: t('merchants.category'), render: (r) => r.category ?? '—' },
     { key: 'phone', header: t('customers.phone'), render: (r) => (r.phone ? <span dir="ltr">{r.phone}</span> : '—') },
     { key: 'status', header: t('common.status'), render: (r) => <StatusBadge status={r.status} /> },
-    { key: 'commissionRate', header: t('merchants.commission'), align: 'end', render: (r) => (r.commissionRate ? `${(Number(r.commissionRate) * 100).toFixed(2)}%` : '—') },
+    { key: 'commissionRate', header: t('merchants.commission'), align: 'end', render: (r) => (r.commissionRate != null ? `${Number(r.commissionRate).toFixed(2)}%` : '—') },
     { key: 'createdAt', header: t('common.createdAt'), render: (r) => formatDateTime(r.createdAt, locale) },
   ];
 

@@ -151,6 +151,12 @@ export class OrdersService {
       zoneId,
     });
 
+    // Never persist an unpriced (zero-fare) order: if no active pricing rule
+    // matched the request context the quote carries no ruleId.
+    if (!quote.ruleId) {
+      throw Errors.conflict('PRICING_UNAVAILABLE', 'No active pricing rule applies to this order');
+    }
+
     const orderNumber = await this.generateOrderNumber(tenantId);
 
     const order = await this.prisma.order.create({

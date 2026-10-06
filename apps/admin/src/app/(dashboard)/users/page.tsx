@@ -5,6 +5,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useResourceList } from '@/lib/use-resource-list';
 import { useAsync } from '@/lib/use-async';
 import { useI18n } from '@/i18n/provider';
+import { useAuth } from '@/lib/auth-provider';
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
@@ -22,6 +23,7 @@ import type { StaffUser } from '@/lib/types';
 
 export default function UsersPage() {
   const { t, locale } = useI18n();
+  const { user: currentUser } = useAuth();
   const { notify } = useToast();
   const list = useResourceList<StaffUser>((query, signal) => endpoints.users(query), { pageSize: 20 });
   const roles = useAsync(() => endpoints.roles(), []);
@@ -62,18 +64,27 @@ export default function UsersPage() {
   const columns: Column<StaffUser>[] = [
     { key: 'fullName', header: t('users.name'), render: (r) => <span className="font-medium">{r.fullName}</span> },
     { key: 'email', header: t('users.email'), render: (r) => r.email ?? '—' },
-    { key: 'roles', header: t('users.roles'), render: (r) => r.roles.join(', ') },
+    { key: 'roles', header: t('users.roles'), render: (r) => r.roles.map((s) => t(`role.${s}`)).join('، ') },
     { key: 'status', header: t('common.status'), render: (r) => <StatusBadge status={r.status} /> },
     { key: 'lastLoginAt', header: t('users.lastLogin'), render: (r) => (r.lastLoginAt ? formatDateTime(r.lastLoginAt, locale) : '—') },
     {
       key: 'actions', header: t('common.actions'), align: 'end',
-      render: (r) => (
-        <PermissionGate permission="users.update">
-          <Button size="sm" variant="secondary" onClick={() => toggleStatus(r)}>
-            {r.status === 'active' ? t('status.suspended') : t('status.active')}
-          </Button>
-        </PermissionGate>
-      ),
+      render: (r) => {
+        const isSelf = r.id === currentUser?.id;
+        return (
+          <PermissionGate permission="users.update">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={isSelf}
+              title={isSelf ? t('users.cannotModifySelf') : undefined}
+              onClick={() => toggleStatus(r)}
+            >
+              {r.status === 'active' ? t('users.suspend') : t('users.activate')}
+            </Button>
+          </PermissionGate>
+        );
+      },
     },
   ];
 

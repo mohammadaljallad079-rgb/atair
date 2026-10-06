@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { endpoints } from '@/lib/endpoints';
 import { useResourceList } from '@/lib/use-resource-list';
+import { useAsync } from '@/lib/use-async';
 import { useI18n } from '@/i18n/provider';
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api';
@@ -22,20 +23,30 @@ export default function PricingPage() {
   const { t, locale } = useI18n();
   const { notify } = useToast();
   const list = useResourceList<PricingRule>((query, signal) => endpoints.pricingRules(query), { pageSize: 20 });
+  const zones = useAsync(() => endpoints.zones({ pageSize: 100 }), []);
 
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [distanceKm, setDistanceKm] = useState('5');
   const [deliveryType, setDeliveryType] = useState('immediate');
+  const [zoneId, setZoneId] = useState('');
   const [quote, setQuote] = useState<PriceQuote | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function runQuote() {
     setBusy(true);
     try {
-      const res = await endpoints.quote({ distanceKm: Number(distanceKm), deliveryType });
+      const res = await endpoints.quote({ distanceKm: Number(distanceKm), deliveryType, zoneId: zoneId || undefined });
       setQuote(res);
+      setQuoteError(null);
     } catch (err) {
-      notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
+      setQuote(null);
+      if (err instanceof ApiError && err.code === 'PRICING_UNAVAILABLE') {
+        setQuoteError(t('pricing.noRule'));
+      } else {
+        setQuoteError(null);
+        notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
+      }
     } finally {
       setBusy(false);
     }
@@ -47,7 +58,7 @@ export default function PricingPage() {
     { key: 'deliveryType', header: t('orders.deliveryType'), render: (r) => (r.deliveryType ? t(`deliveryType.${r.deliveryType}`) : t('common.all')) },
     { key: 'priority', header: t('pricing.priority'), align: 'end', render: (r) => r.priority },
     { key: 'components', header: t('pricing.components'), align: 'end', render: (r) => r.components?.length ?? 0 },
-    { key: 'currency', header: 'Currency', render: (r) => r.currency },
+    { key: 'currency', header: t('common.currency'), render: (r) => r.currency },
     { key: 'isActive', header: t('pricing.active'), render: (r) => <StatusBadge status={r.isActive ? 'active' : 'inactive'} /> },
   ];
 
@@ -78,6 +89,14 @@ export default function PricingPage() {
                 </Select>
               </Field>
             </div>
+            <div className="w-48">
+              <Field label={t('zones.name')}>
+                <Select value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
+                  <option value="">{t('common.all')}</option>
+                  {zones.data?.items?.map((z) => <option key={z.id} value={z.id}>{z.name}</option>)}
+                </Select>
+              </Field>
+            </div>
             <Button loading={busy} onClick={runQuote}>{t('pricing.quote')}</Button>
           </div>
           {quote && (
@@ -93,6 +112,9 @@ export default function PricingPage() {
                 <span className="text-brand-600">{formatMoney(quote.total, quote.currency, locale)}</span>
               </div>
             </div>
+          )}
+          {quoteError && (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{quoteError}</p>
           )}
         </Card>
       )}

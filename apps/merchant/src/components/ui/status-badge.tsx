@@ -29,6 +29,8 @@ const STATUS_TONES: Record<string, Tone> = {
   // payment
   authorized: 'info', paid: 'success', failed: 'danger', refunded: 'warning',
   partially_refunded: 'warning',
+  // cash on delivery
+  none: 'neutral', collected: 'info', settled: 'success',
   // ticket / notification
   open: 'info', resolved: 'success', closed: 'neutral',
   queued: 'neutral', sent: 'success', read: 'neutral',

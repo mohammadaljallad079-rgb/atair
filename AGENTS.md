@@ -58,3 +58,16 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 ## Local env
 - Copy `apps/api/.env.example` → `apps/api/.env`; `packages/db/.env` holds `DATABASE_URL`.
 - Postgres runs in Docker container `atair-postgres` (host port 5432).
+
+## Audit & security logging
+- `ActivityLog` (via `AuditService` / `AuthService.safeAudit`) records the business audit trail shown under `/audit`.
+- `SecurityEvent` (`security_events`) is a separate, higher-signal feed surfaced at `/audit/security-events` (and the admin Audit page). Auth writes `auth.login_success`, `auth.login_failed` (warning), `auth.login_lockout` (high), and `auth.login_locked` via `AuthService.safeSecurityEvent` — keep this in sync when changing the login path, otherwise the screen silently shows nothing.
+
+## Frontend auth / session pitfalls
+- Both web apps keep the access token in memory and the opaque refresh token in `localStorage`. Refresh tokens are single-use and rotated server-side (`AuthService.refresh`).
+- `refreshSession()` in `apps/{admin,merchant}/src/lib/api.ts` is single-flight, but a single-flight guard only covers one JS context. Two tabs (or a reload racing an in-flight request) can each POST the same token; the second gets 401 after the first rotated it. The client therefore retries once with the newest stored token before clearing the session. Do not "simplify" this back to a single attempt — it causes spurious logouts.
+- Responsive dashboards: metric grids use `grid-cols-2`, so a `MetricCard` value must be allowed to shrink (`min-w-0` on the card + `break-words` on the value) or long Arabic money strings force horizontal page scroll on ~390px viewports.
+
+## Pricing guard (zero-fare hole)
+- `PricingService.quote` throws `409 PRICING_UNAVAILABLE` when `PricingEngine.selectRule` returns null. The order-create paths (admin + merchant) already guarded before persisting; the admin `/pricing/quote` preview is guarded too, and the admin pricing page renders `pricing.noRule` for that code. Never return a silent `total: 0` quote.
+- Rules can be scoped by zone/merchant/vehicleType. `loadApplicableRules` matches only `null`-scoped rules unless the request carries the scope, so a zone-scoped rule (e.g. the seeded Riyadh rule) requires the caller to pass `zoneId` (or coordinates the server resolves to a zone).

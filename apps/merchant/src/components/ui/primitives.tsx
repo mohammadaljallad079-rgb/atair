@@ -89,9 +89,9 @@ export function MetricCard({ label, value, tone = 'neutral', hint }: {
     danger: 'text-red-600',
   };
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="min-w-0 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <p className="text-xs font-medium text-slate-500">{label}</p>
-      <p className={cn('mt-1 text-2xl font-bold', toneRing[tone])}>{value}</p>
+      <p className={cn('mt-1 break-words text-2xl font-bold', toneRing[tone])}>{value}</p>
       {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
     </div>
   );

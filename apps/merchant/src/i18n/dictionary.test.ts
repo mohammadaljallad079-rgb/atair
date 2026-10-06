@@ -22,4 +22,12 @@ describe('translate', () => {
       expect(translate('en', `status.${s}`)).not.toBe(`status.${s}`);
     }
   });
+
+  it('translates every COD status used by the COD page filter', () => {
+    const codStatuses = ['none', 'pending', 'collected', 'settled', 'cancelled'];
+    for (const s of codStatuses) {
+      expect(translate('ar', `status.${s}`)).not.toBe(`status.${s}`);
+      expect(translate('en', `status.${s}`)).not.toBe(`status.${s}`);
+    }
+  });
 });

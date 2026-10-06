@@ -52,7 +52,7 @@ export default function RolesPage() {
                     }`}
                   >
                     <span className="flex items-center justify-between gap-2">
-                      <span>{r.name}</span>
+                      <span>{t(`role.${r.slug}`)}</span>
                       {r.isSystem && <StatusBadge status="active" />}
                     </span>
                     <span className="mt-0.5 block text-[11px] text-slate-400">{r.slug}</span>
@@ -63,7 +63,7 @@ export default function RolesPage() {
           ) : <EmptyState />}
         </Card>
 
-        <Card className="lg:col-span-2" title={selected ? selected.name : t('roles.permissions')}>
+        <Card className="lg:col-span-2" title={selected ? t(`role.${selected.slug}`) : t('roles.permissions')}>
           {selected ? (
             <>
               <p className="mb-3 text-xs text-slate-500">{selected.description}</p>

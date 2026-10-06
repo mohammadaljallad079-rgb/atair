@@ -47,7 +47,7 @@ export class AuthController {
   @Get('me')
   @ApiOperation({ summary: 'Return the authenticated principal' })
   me(@CurrentUser() user: AuthUser) {
-    return user;
+    return this.auth.me(user.userId);
   }
 
   @Public()

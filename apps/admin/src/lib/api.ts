@@ -12,7 +12,10 @@ import type { Paginated } from './types';
  *   the signed JWT.
  */
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+// Empty default = same-origin: the API is expected behind the same host/reverse
+// proxy (routes under /api/v1). This avoids mixed-content blocking when the app
+// is served over HTTPS. Override with NEXT_PUBLIC_API_URL for a split origin.
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/$/, '');
 const BASE = `${API_URL}/api/v1`;
 const REFRESH_KEY = 'atair.refreshToken';
 const SESSION_FLAG = 'atair.session';
@@ -144,19 +147,38 @@ async function rawRequest<T>(path: string, opts: RequestOptions = {}): Promise<{
 let refreshPromise: Promise<boolean> | null = null;
 
 async function refreshSession(): Promise<boolean> {
-  const token = getRefreshToken();
-  if (!token) return false;
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const { data } = await rawRequest<{ accessToken: string; refreshToken: string }>('/auth/refresh', {
-          method: 'POST',
-          body: { refreshToken: token },
-          skipRefresh: true,
-        });
-        accessToken = data.accessToken;
-        setRefreshToken(data.refreshToken);
-        return true;
+        const token = getRefreshToken();
+        if (!token) return false;
+        try {
+          const { data } = await rawRequest<{ accessToken: string; refreshToken: string }>('/auth/refresh', {
+            method: 'POST',
+            body: { refreshToken: token },
+            skipRefresh: true,
+          });
+          accessToken = data.accessToken;
+          setRefreshToken(data.refreshToken);
+          return true;
+        } catch {
+          // A concurrent context (second tab, or a reload racing an in-flight
+          // request) may have rotated the single-use token first. Retry once
+          // with the newest stored token before treating the session as gone.
+          const latest = getRefreshToken();
+          if (!latest || latest === token) {
+            clearTokens();
+            return false;
+          }
+          const { data } = await rawRequest<{ accessToken: string; refreshToken: string }>('/auth/refresh', {
+            method: 'POST',
+            body: { refreshToken: latest },
+            skipRefresh: true,
+          });
+          accessToken = data.accessToken;
+          setRefreshToken(data.refreshToken);
+          return true;
+        }
       } catch {
         clearTokens();
         return false;

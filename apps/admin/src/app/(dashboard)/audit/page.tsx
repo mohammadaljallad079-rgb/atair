@@ -28,7 +28,7 @@ export default function AuditPage() {
     { key: 'createdAt', header: t('common.createdAt'), render: (r) => formatDateTime(r.createdAt, locale) },
     { key: 'action', header: t('audit.action'), render: (r) => <span className="font-medium">{r.action}</span> },
     { key: 'entity', header: t('audit.entity'), render: (r) => r.entity },
-    { key: 'entityId', header: 'Entity ID', render: (r) => (r.entityId ? <span dir="ltr" className="text-xs">{r.entityId.slice(0, 8)}</span> : '—') },
+    { key: 'entityId', header: t('audit.entityId'), render: (r) => (r.entityId ? <span dir="ltr" className="text-xs">{r.entityId.slice(0, 8)}</span> : '—') },
     { key: 'ip', header: t('audit.ip'), render: (r) => (r.ip ? <span dir="ltr">{r.ip}</span> : '—') },
   ];
 

@@ -55,6 +55,7 @@ export class ReportsService {
       onlineDrivers,
       busyDrivers,
       revenueAgg,
+      driverEarningsAgg,
       commissionAgg,
       pendingPaymentsAgg,
     ] = await this.prisma.$transaction([
@@ -69,14 +70,15 @@ export class ReportsService {
         where: { tenantId, status: 'delivered', createdAt: createdInRange },
         _sum: { total: true },
       }),
+      // Driver earnings realised in the selected range (delivered orders). Uses
+      // the same basis as revenue so the two KPIs stay mutually consistent.
+      this.prisma.order.aggregate({
+        where: { tenantId, status: 'delivered', driverId: { not: null }, createdAt: createdInRange },
+        _sum: { total: true },
+      }),
       this.prisma.commission.aggregate({ where: { tenantId, createdAt: createdInRange }, _sum: { amount: true } }),
       this.prisma.payment.aggregate({ where: { tenantId, status: 'pending' }, _sum: { amount: true } }),
     ]);
-
-    const driverEarnings = await this.prisma.driver.aggregate({
-      where: { tenantId },
-      _sum: { totalEarnings: true },
-    });
 
     return {
       orders: {
@@ -89,7 +91,7 @@ export class ReportsService {
       drivers: { online: onlineDrivers, busy: busyDrivers },
       finance: {
         revenue: Number(revenueAgg._sum.total ?? 0),
-        driverEarnings: Number(driverEarnings._sum.totalEarnings ?? 0),
+        driverEarnings: Number(driverEarningsAgg._sum.total ?? 0),
         platformCommission: Number(commissionAgg._sum.amount ?? 0),
         pendingPayments: Number(pendingPaymentsAgg._sum.amount ?? 0),
       },

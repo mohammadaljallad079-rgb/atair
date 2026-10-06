@@ -40,7 +40,10 @@ export class PaymentsService {
    * commission row. Idempotent per order via the wallet reference.
    */
   private async settleDriverEarnings(tenantId: string, orderId: string) {
-    const order = await this.prisma.order.findFirst({ where: { id: orderId, tenantId } });
+    const order = await this.prisma.order.findFirst({
+      where: { id: orderId, tenantId },
+      include: { merchant: { select: { commissionRate: true } } },
+    });
     if (!order?.driverId) return;
 
     const amount = Number(order.total);
@@ -54,8 +57,20 @@ export class PaymentsService {
 
     const already = await this.prisma.commission.findFirst({ where: { tenantId, orderId } });
     if (!already) {
+      // Platform commission is the merchant's cut of the COD merchandise the
+      // driver collects (rate stored as a percentage on the merchant), mirroring
+      // the merchant settlement domain. No COD ⇒ no commission.
+      const rate = order.merchant?.commissionRate != null ? Number(order.merchant.commissionRate) : 0;
+      const commissionAmount = Math.round(Number(order.codAmount) * (rate / 100) * 100) / 100;
       await this.prisma.commission.create({
-        data: { tenantId, orderId, driverId: order.driverId, amount: 0 },
+        data: {
+          tenantId,
+          orderId,
+          driverId: order.driverId,
+          merchantId: order.merchantId,
+          amount: commissionAmount,
+          rate: rate || null,
+        },
       });
     }
   }

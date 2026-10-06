@@ -56,6 +56,31 @@ export class AuthService {
     return { roles, permissions, isPlatformAdmin, merchantIds };
   }
 
+  /**
+   * Full principal for the client. The access token only carries identifiers and
+   * authorization, so the display fields are loaded fresh from the database
+   * (same shape as the login response).
+   */
+  async me(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { tenant: true },
+    });
+    if (!user) throw Errors.unauthorized('User no longer exists');
+    const auth = await this.resolveAuthorization(user.id);
+    return {
+      id: user.id,
+      fullName: user.fullName,
+      email: user.email,
+      phone: user.phone,
+      tenantId: user.tenantId,
+      tenantSlug: user.tenant.slug,
+      roles: auth.roles,
+      permissions: auth.permissions,
+      merchantIds: auth.merchantIds,
+    };
+  }
+
   async login(identifier: string, password: string, meta: RequestMeta, tenantSlug?: string) {
     const isEmail = identifier.includes('@');
 
@@ -70,6 +95,7 @@ export class AuthService {
     // Uniform failure to avoid user enumeration.
     if (candidates.length === 0) {
       await this.safeAudit(null, 'auth.login_failed', 'unknown identifier', meta);
+      await this.safeSecurityEvent(null, 'auth.login_failed', 'warning', { reason: 'unknown_identifier', identifier }, meta);
       throw Errors.invalidCredentials();
     }
     if (candidates.length > 1 && !tenantSlug) {
@@ -79,6 +105,7 @@ export class AuthService {
     const user = candidates[0];
 
     if (user.lockedUntil && user.lockedUntil > new Date()) {
+      await this.safeSecurityEvent(user.tenantId, 'auth.login_locked', 'warning', { reason: 'account_locked', lockedUntil: user.lockedUntil }, meta, user.id);
       throw Errors.accountLocked();
     }
     if (user.status === 'suspended' || user.status === 'locked') {
@@ -101,6 +128,14 @@ export class AuthService {
         data: { failedLoginAttempts: attempts, lockedUntil: lockUntil },
       });
       await this.safeAudit(user.tenantId, 'auth.login_failed', `user:${user.id}`, meta, user.id);
+      await this.safeSecurityEvent(
+        user.tenantId,
+        lockUntil ? 'auth.login_lockout' : 'auth.login_failed',
+        lockUntil ? 'high' : 'warning',
+        { reason: lockUntil ? 'lockout_threshold_reached' : 'bad_password', attempts },
+        meta,
+        user.id,
+      );
       if (lockUntil) throw Errors.accountLocked();
       throw Errors.invalidCredentials();
     }
@@ -114,6 +149,7 @@ export class AuthService {
     const tokens = await this.issueTokens(user.id, user.tenantId, auth, meta);
 
     await this.safeAudit(user.tenantId, 'auth.login', `user:${user.id}`, meta, user.id);
+    await this.safeSecurityEvent(user.tenantId, 'auth.login_success', 'info', { method: 'password' }, meta, user.id);
 
     return {
       user: {
@@ -291,6 +327,31 @@ export class AuthService {
       });
     } catch {
       /* audit must never break auth */
+    }
+  }
+
+  private async safeSecurityEvent(
+    tenantId: string | null,
+    type: string,
+    severity: 'info' | 'warning' | 'high' | 'critical',
+    details: Record<string, unknown>,
+    meta: RequestMeta,
+    userId?: string,
+  ) {
+    try {
+      await this.prisma.securityEvent.create({
+        data: {
+          tenantId,
+          userId: userId ?? null,
+          type,
+          severity,
+          details: details as any,
+          ip: meta.ip,
+          userAgent: meta.userAgent,
+        },
+      });
+    } catch {
+      /* security logging must never break auth */
     }
   }
 }

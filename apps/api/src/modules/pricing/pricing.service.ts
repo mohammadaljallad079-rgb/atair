@@ -181,6 +181,12 @@ export class PricingService {
   async quote(tenantId: string, dto: QuoteDto): Promise<PriceQuote> {
     const rules = await this.loadApplicableRules(tenantId, dto);
     const rule = PricingEngine.selectRule(rules);
+    if (!rule) {
+      // No rule matched (e.g. an out-of-zone request): never surface a silent
+      // zero-fare quote. Callers must scope the request to a zone/merchant that
+      // has pricing configured.
+      throw Errors.conflict('PRICING_UNAVAILABLE', 'No pricing rule applies to this request');
+    }
     return PricingEngine.quote(rule, dto);
   }
 }

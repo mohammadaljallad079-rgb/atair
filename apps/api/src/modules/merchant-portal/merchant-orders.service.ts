@@ -163,7 +163,7 @@ export class MerchantOrdersService {
       zoneId = zone?.id;
     }
 
-    return this.pricing.quote(tenantId, {
+    const result = await this.pricing.quote(tenantId, {
       distanceKm,
       durationMin,
       weightKg: dto.weightKg,
@@ -173,6 +173,13 @@ export class MerchantOrdersService {
       merchantId: ctx.merchantId,
       zoneId,
     });
+
+    // Mirror the order-creation guard so the merchant sees a clear error rather
+    // than a zero-total quote when no pricing rule matches.
+    if (!result.ruleId) {
+      throw Errors.conflict('PRICING_UNAVAILABLE', 'No active pricing rule applies to this delivery');
+    }
+    return result;
   }
 
   async create(ctx: MerchantContext, dto: CreateMerchantOrderDto, actor: { userId: string; ip?: string }) {

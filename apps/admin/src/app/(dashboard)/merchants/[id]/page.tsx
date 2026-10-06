@@ -33,7 +33,7 @@ export default function MerchantDetailPage() {
             <div className="flex justify-between"><dt className="text-slate-500">{t('common.status')}</dt><dd><StatusBadge status={m.status} /></dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">{t('customers.phone')}</dt><dd dir="ltr">{m.phone ?? '—'}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">{t('customers.email')}</dt><dd>{m.email ?? '—'}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">{t('merchants.commission')}</dt><dd>{m.commissionRate ? `${(Number(m.commissionRate) * 100).toFixed(2)}%` : '—'}</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t('merchants.commission')}</dt><dd>{m.commissionRate != null ? `${Number(m.commissionRate).toFixed(2)}%` : '—'}</dd></div>
           </dl>
         </Card>
         <Card title={t('merchants.branches')}>
