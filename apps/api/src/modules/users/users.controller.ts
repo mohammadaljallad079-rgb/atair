@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, PartialType } from '@nestjs/swagger';
 import { IsArray, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { CreateUserDto, UpdateUserDto, UpsertRoleDto, UsersService } from './users.service';
@@ -31,6 +31,8 @@ class UpsertRoleBody implements UpsertRoleDto {
   @IsArray() permissions!: string[];
 }
 
+class UpdateRoleBody extends PartialType(UpsertRoleBody) {}
+
 @ApiTags('users')
 @ApiBearerAuth()
 @Controller('users')
@@ -58,7 +60,7 @@ export class UsersController {
 
   @Patch('roles/:id')
   @RequirePermissions([PERMISSIONS.users_manage_roles])
-  updateRole(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: Partial<UpsertRoleBody>, @Ip() ip: string) {
+  updateRole(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateRoleBody, @Ip() ip: string) {
     return this.users.updateRole(user.tenantId, id, dto, this.actor(user, ip));
   }
 

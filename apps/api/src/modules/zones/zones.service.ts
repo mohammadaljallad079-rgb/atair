@@ -52,9 +52,17 @@ export class ZonesService {
   async update(tenantId: string, id: string, dto: Partial<CreateZoneDto>, actor: { userId: string; ip?: string }) {
     const before = await this.prisma.serviceZone.findFirst({ where: { id, tenantId } });
     if (!before) throw Errors.notFound('zone');
+    // Explicit field pick instead of spreading the request body into Prisma.
     const zone = await this.prisma.serviceZone.update({
       where: { id },
-      data: { ...dto, polygon: dto.polygon as any },
+      data: {
+        name: dto.name,
+        code: dto.code,
+        polygon: dto.polygon as any,
+        centerLat: dto.centerLat,
+        centerLng: dto.centerLng,
+        isActive: dto.isActive,
+      },
     });
     await this.audit.log({ tenantId, userId: actor.userId, action: 'zone.update', entity: 'service_zone', entityId: id, before, after: zone, ip: actor.ip });
     return zone;

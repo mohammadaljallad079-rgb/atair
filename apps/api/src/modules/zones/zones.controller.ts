@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, PartialType } from '@nestjs/swagger';
 import { IsArray, IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { CreateZoneDto, ZonesService } from './zones.service';
@@ -15,6 +15,8 @@ class CreateZoneBody implements CreateZoneDto {
   @IsOptional() @IsNumber() centerLng?: number;
   @IsOptional() @IsBoolean() isActive?: boolean;
 }
+
+class UpdateZoneBody extends PartialType(CreateZoneBody) {}
 
 @ApiTags('zones')
 @ApiBearerAuth()
@@ -37,7 +39,7 @@ export class ZonesController {
 
   @Patch(':id')
   @RequirePermissions([PERMISSIONS.zones_manage])
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: Partial<CreateZoneBody>, @Ip() ip: string) {
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateZoneBody, @Ip() ip: string) {
     return this.zones.update(user.tenantId, id, dto, { userId: user.userId, ip });
   }
 

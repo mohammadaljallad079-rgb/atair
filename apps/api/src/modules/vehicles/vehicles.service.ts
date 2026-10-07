@@ -133,7 +133,17 @@ export class VehiclesService {
   async update(tenantId: string, id: string, dto: Partial<CreateVehicleDto>, actor: { userId: string; ip?: string }) {
     const before = await this.prisma.vehicle.findFirst({ where: { id, tenantId } });
     if (!before) throw Errors.notFound('vehicle');
-    const vehicle = await this.prisma.vehicle.update({ where: { id }, data: dto });
+    // Explicit field pick: never spread the request body straight into Prisma,
+    // so an unexpected key can never reach a non-updatable column.
+    const data = {
+      plateNumber: dto.plateNumber,
+      vehicleTypeId: dto.vehicleTypeId,
+      make: dto.make,
+      model: dto.model,
+      year: dto.year,
+      color: dto.color,
+    };
+    const vehicle = await this.prisma.vehicle.update({ where: { id }, data });
     await this.audit.log({ tenantId, userId: actor.userId, action: 'vehicle.update', entity: 'vehicle', entityId: id, before, after: vehicle, ip: actor.ip });
     return vehicle;
   }
