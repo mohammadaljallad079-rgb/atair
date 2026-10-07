@@ -1,9 +1,11 @@
-import { Body, Controller, Get, Ip, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Ip, Param, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@atair/db';
-import { WalletAdjustDto, WalletsService } from './wallets.service';
+import { WalletsService } from './wallets.service';
+import { WalletAdjustDto } from './dto/wallet.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PaginationQueryDto, paginated } from '../../common/dto/pagination.dto';
 
 @ApiTags('wallets')
 @ApiBearerAuth()
@@ -13,14 +15,15 @@ export class WalletsController {
 
   @Get()
   @RequirePermissions([PERMISSIONS.wallets_view])
-  list(@CurrentUser() user: AuthUser) {
-    return this.wallets.list(user.tenantId);
+  async list(@CurrentUser() user: AuthUser, @Query() q: PaginationQueryDto) {
+    const { items, total } = await this.wallets.list(user.tenantId, q);
+    return paginated(items, total, q.page, q.pageSize);
   }
 
   @Get('driver/:driverId')
   @RequirePermissions([PERMISSIONS.wallets_view])
-  get(@CurrentUser() user: AuthUser, @Param('driverId') driverId: string) {
-    return this.wallets.get(user.tenantId, driverId);
+  get(@CurrentUser() user: AuthUser, @Param('driverId') driverId: string, @Query() q: PaginationQueryDto) {
+    return this.wallets.get(user.tenantId, driverId, q);
   }
 
   @Post('driver/:driverId/adjust')

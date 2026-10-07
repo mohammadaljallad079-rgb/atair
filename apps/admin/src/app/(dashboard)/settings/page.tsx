@@ -68,6 +68,7 @@ export default function SettingsPage() {
   return (
     <RequirePermission permission="settings.view">
       <PageHeader title={t('settings.title')} subtitle={t('settings.subtitle')} />
+      <p className="mb-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">{t('settings.hint')}</p>
       <Card>
         {settings.loading ? <LoadingState /> : settings.error ? (
           <ErrorState error={settings.error} onRetry={settings.reload} />

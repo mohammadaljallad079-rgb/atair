@@ -1,11 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ACTIVE_STATUSES } from '../orders/order-state.machine';
+import { ACTIVE_STATUSES, OrderStatus } from '../orders/order-state.machine';
 
 export interface DashboardRange {
   from: Date;
   to: Date;
 }
+
+// Orders still moving toward delivery (not yet handed to a driver).
+const AWAITING_ASSIGNMENT: OrderStatus[] = ['pending', 'confirmed', 'searching_driver'];
+// Driver has the order in hand / en route.
+const PICKED_UP_STATUSES: OrderStatus[] = ['picked_up'];
+const IN_TRANSIT_STATUSES: OrderStatus[] = ['in_transit', 'arriving'];
+// Delivered but not marked paid (COD / cash still outstanding).
+const PROBLEM_PAYMENT_STATUSES = ['pending', 'failed'];
 
 @Injectable()
 export class ReportsService {
@@ -165,5 +173,179 @@ export class ReportsService {
       pausedDrivers,
       suspendedDrivers,
     };
+  }
+
+  /**
+   * Live-operations overview: current workload buckets, driver availability and
+   * operational alerts (problem deliveries + stale orders). Snapshot semantics —
+   * the client polls this endpoint, so every field reflects the moment of the
+   * request. There is no WebSocket/SSE channel in this deployment.
+   */
+  async liveOverview(tenantId: string) {
+    const now = new Date();
+    const staleCutoff = new Date(now.getTime() - 45 * 60 * 1000);
+    const recentCutoff = new Date(now.getTime() - 60 * 60 * 1000);
+    const active = { in: ACTIVE_STATUSES };
+
+    const [
+      awaitingAssignment,
+      assigned,
+      pickedUp,
+      inTransit,
+      delayed,
+      failedDelivery,
+      recentlyDelivered,
+      availableDrivers,
+      busyDrivers,
+      offlineDrivers,
+      suspendedDrivers,
+      problemOrders,
+      staleOrders,
+    ] = await this.prisma.$transaction([
+      this.prisma.order.count({ where: { tenantId, status: { in: AWAITING_ASSIGNMENT } } }),
+      this.prisma.order.count({ where: { tenantId, status: 'assigned' as any } }),
+      this.prisma.order.count({ where: { tenantId, status: { in: PICKED_UP_STATUSES } } }),
+      this.prisma.order.count({ where: { tenantId, status: { in: IN_TRANSIT_STATUSES } } }),
+      this.prisma.order.count({
+        where: { tenantId, status: active, updatedAt: { lt: staleCutoff } },
+      }),
+      this.prisma.order.count({ where: { tenantId, status: 'failed_delivery' as any } }),
+      this.prisma.order.count({
+        where: { tenantId, status: 'delivered' as any, deliveredAt: { gte: recentCutoff } },
+      }),
+      this.prisma.driver.count({ where: { tenantId, status: 'online', isAvailable: true } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'busy' } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'offline' } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'suspended' } }),
+      this.prisma.order.findMany({
+        where: {
+          tenantId,
+          OR: [
+            { status: 'failed_delivery' as any },
+            { status: active, updatedAt: { lt: staleCutoff } },
+            { status: 'delivered' as any, paymentStatus: { in: PROBLEM_PAYMENT_STATUSES as any } },
+          ],
+        },
+        select: { id: true, orderNumber: true, status: true, paymentStatus: true, updatedAt: true, driverId: true },
+        orderBy: { updatedAt: 'asc' },
+        take: 50,
+      }),
+      this.prisma.order.count({ where: { tenantId, status: active, updatedAt: { lt: staleCutoff } } }),
+    ]);
+
+    return {
+      generatedAt: now.toISOString(),
+      buckets: {
+        awaitingAssignment,
+        assigned,
+        pickedUp,
+        inTransit,
+        delayed,
+        failedDelivery,
+        recentlyDelivered,
+      },
+      drivers: { available: availableDrivers, busy: busyDrivers, offline: offlineDrivers, suspended: suspendedDrivers },
+      problemOrders,
+      staleOrderCount: staleOrders,
+    };
+  }
+
+  /** Per-driver operational report over the selected range. */
+  async driversReport(tenantId: string, range: DashboardRange) {
+    const drivers = await this.prisma.driver.findMany({
+      where: { tenantId },
+      select: {
+        id: true, fullName: true, status: true, verificationStatus: true, isAvailable: true,
+        rating: true, completedOrders: true, cancelledOrders: true, totalEarnings: true,
+      },
+      orderBy: { completedOrders: 'desc' },
+    });
+    const delivered = await this.prisma.order.groupBy({
+      by: ['driverId'],
+      where: { tenantId, status: 'delivered', driverId: { not: null }, createdAt: { gte: range.from, lte: range.to } },
+      _count: { _all: true },
+      _sum: { total: true },
+    });
+    const byDriver = new Map(delivered.map((d) => [d.driverId, d]));
+    return drivers.map((d) => {
+      const agg = byDriver.get(d.id);
+      return {
+        ...d,
+        completedInRange: agg?._count._all ?? 0,
+        revenueInRange: Number(agg?._sum.total ?? 0),
+      };
+    });
+  }
+
+  /** Per-merchant report over the selected range. */
+  async merchantsReport(tenantId: string, range: DashboardRange) {
+    const merchants = await this.prisma.merchant.findMany({
+      where: { tenantId },
+      select: { id: true, name: true, slug: true, status: true, commissionRate: true },
+      orderBy: { name: 'asc' },
+    });
+    const grouped = await this.prisma.order.groupBy({
+      by: ['merchantId', 'status'],
+      where: { tenantId, merchantId: { not: null }, createdAt: { gte: range.from, lte: range.to } },
+      _count: { _all: true },
+      _sum: { total: true },
+    });
+    const byMerchant = new Map<string, { orders: number; delivered: number; revenue: number }>();
+    for (const g of grouped) {
+      if (!g.merchantId) continue;
+      const entry = byMerchant.get(g.merchantId) ?? { orders: 0, delivered: 0, revenue: 0 };
+      entry.orders += g._count._all;
+      if (g.status === 'delivered') {
+        entry.delivered += g._count._all;
+        entry.revenue += Number(g._sum.total ?? 0);
+      }
+      byMerchant.set(g.merchantId, entry);
+    }
+    return merchants.map((m) => ({
+      ...m,
+      ...(byMerchant.get(m.id) ?? { orders: 0, delivered: 0, revenue: 0 }),
+    }));
+  }
+
+  /** Escapes a value for safe CSV embedding (RFC 4180 quoting). */
+  private csvCell(value: unknown): string {
+    const s = value == null ? '' : String(value);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  /**
+   * Exports orders within a range as CSV. Only the tenant's own orders are
+   * included; columns are a fixed allow-list so no internal fields leak.
+   */
+  async exportOrdersCsv(tenantId: string, range: DashboardRange, status?: string) {
+    const where: any = { tenantId, createdAt: { gte: range.from, lte: range.to } };
+    if (status) where.status = status;
+    const orders = await this.prisma.order.findMany({
+      where,
+      select: {
+        orderNumber: true, status: true, paymentStatus: true, paymentMethod: true,
+        total: true, currency: true, pickupAddress: true, dropoffAddress: true,
+        createdAt: true, deliveredAt: true,
+        customer: { select: { fullName: true, phone: true } },
+        driver: { select: { fullName: true } },
+        merchant: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10000,
+    });
+    const header = [
+      'orderNumber', 'status', 'paymentStatus', 'paymentMethod', 'total', 'currency',
+      'customer', 'customerPhone', 'driver', 'merchant', 'pickupAddress', 'dropoffAddress',
+      'createdAt', 'deliveredAt',
+    ];
+    const lines = [header.join(',')];
+    for (const o of orders) {
+      lines.push([
+        o.orderNumber, o.status, o.paymentStatus, o.paymentMethod, Number(o.total), o.currency,
+        o.customer?.fullName, o.customer?.phone, o.driver?.fullName, o.merchant?.name,
+        o.pickupAddress, o.dropoffAddress, o.createdAt.toISOString(), o.deliveredAt?.toISOString(),
+      ].map((v) => this.csvCell(v)).join(','));
+    }
+    return lines.join('\n');
   }
 }

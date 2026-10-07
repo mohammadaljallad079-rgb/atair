@@ -21,6 +21,7 @@ const paths: Record<string, ReactNode> = {
   id: <><rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="9" cy="11" r="2" /><path d="M6 16c1-1.6 5-1.6 6 0M15 10h3M15 13h3" /></>,
   key: <><circle cx="8" cy="14" r="4" /><path d="m11 11 8-8M17 3l3 3M14 6l3 3" /></>,
   cog: <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" /></>,
+  chart: <><path d="M4 20V4M4 20h16" /><path d="M8 20v-6M12 20v-10M16 20v-4" /></>,
 };
 
 export function Icon({ name, className = 'h-4 w-4' }: { name: string; className?: string }) {

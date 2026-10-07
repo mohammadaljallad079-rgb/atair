@@ -17,6 +17,12 @@ export class DispatchController {
     return this.dispatch.offers(user.tenantId, orderId);
   }
 
+  @Get('board')
+  @RequirePermissions([PERMISSIONS.dispatch_view])
+  board(@CurrentUser() user: AuthUser) {
+    return this.dispatch.board(user.tenantId);
+  }
+
   @Post('orders/:orderId/redispatch')
   @RequirePermissions([PERMISSIONS.dispatch_manage])
   redispatch(@CurrentUser() user: AuthUser, @Param('orderId') orderId: string) {

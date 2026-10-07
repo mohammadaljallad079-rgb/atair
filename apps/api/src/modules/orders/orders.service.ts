@@ -289,6 +289,10 @@ export class OrdersService {
 
     if (!opts.force) {
       OrderStateMachine.assertTransition(from, to);
+    } else if (!dto.reason || !dto.reason.trim()) {
+      // A forced transition bypasses the state machine, so a justification is
+      // mandatory — it is the only record of why an illegal move was allowed.
+      throw Errors.validation('A reason is required for a forced status override');
     }
 
     const data: any = { status: to };

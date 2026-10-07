@@ -4,11 +4,14 @@ import { useParams, useRouter } from 'next/navigation';
 import { endpoints } from '@/lib/endpoints';
 import { useAsync } from '@/lib/use-async';
 import { useI18n } from '@/i18n/provider';
-import { formatDateTime } from '@/lib/format';
-import { PageHeader, Card, ErrorState, LoadingState } from '@/components/ui/primitives';
+import { formatDateTime, formatMoney } from '@/lib/format';
+import { PageHeader, Card, ErrorState, LoadingState, EmptyState } from '@/components/ui/primitives';
+import { DataTable, Column } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
 import type { CustomerDetail } from '@/lib/types';
+
+type OrderRow = NonNullable<CustomerDetail['orders']>[number];
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +23,21 @@ export default function CustomerDetailPage() {
   if (customer.error) return <Card><ErrorState error={customer.error} onRetry={customer.reload} /></Card>;
   const c = customer.data;
   if (!c) return null;
+
+  const orderColumns: Column<OrderRow>[] = [
+    {
+      key: 'orderNumber', header: t('orders.number'),
+      render: (r) => (
+        <button className="font-medium text-ink-700 hover:underline" onClick={() => router.push(`/orders/${r.id}`)}>
+          {r.orderNumber}
+        </button>
+      ),
+    },
+    { key: 'status', header: t('common.status'), render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'paymentStatus', header: t('orders.paymentStatus'), render: (r) => <StatusBadge status={r.paymentStatus} /> },
+    { key: 'total', header: t('orders.total'), align: 'end', render: (r) => formatMoney(r.total, r.currency, locale) },
+    { key: 'createdAt', header: t('common.createdAt'), render: (r) => formatDateTime(r.createdAt, locale) },
+  ];
 
   return (
     <>
@@ -53,6 +71,12 @@ export default function CustomerDetailPage() {
           ) : <p className="text-sm text-slate-400">{t('common.empty')}</p>}
         </Card>
       </div>
+
+      <Card className="mt-4" title={t('customers.orderHistory')}>
+        {c.orders?.length ? (
+          <DataTable columns={orderColumns} rows={c.orders} rowKey={(r) => r.id} />
+        ) : <EmptyState />}
+      </Card>
     </>
   );
 }

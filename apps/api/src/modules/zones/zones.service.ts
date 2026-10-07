@@ -11,6 +11,7 @@ export interface CreateZoneDto {
   polygon?: number[][];
   centerLat?: number;
   centerLng?: number;
+  isActive?: boolean;
 }
 
 @Injectable()
@@ -41,6 +42,7 @@ export class ZonesService {
         polygon: dto.polygon as any,
         centerLat: dto.centerLat,
         centerLng: dto.centerLng,
+        isActive: dto.isActive ?? true,
       },
     });
     await this.audit.log({ tenantId, userId: actor.userId, action: 'zone.create', entity: 'service_zone', entityId: zone.id, after: zone, ip: actor.ip });

@@ -48,7 +48,16 @@ export class CustomersService {
       include: { addresses: true, preferences: true },
     });
     if (!customer) throw Errors.notFound('customer');
-    return customer;
+    const orders = await this.prisma.order.findMany({
+      where: { tenantId, customerId: id },
+      select: {
+        id: true, orderNumber: true, status: true, total: true, currency: true,
+        paymentStatus: true, createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    return { ...customer, orders };
   }
 
   async create(tenantId: string, dto: CreateCustomerDto, actor: { userId: string; ip?: string }) {

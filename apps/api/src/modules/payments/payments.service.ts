@@ -2,28 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Errors } from '../../common/errors/app-error';
 import { AuditService } from '../audit/audit.service';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { WalletsService } from '../wallets/wallets.service';
 import { CashPaymentProvider, PaymentProvider } from './payment-provider';
-
-export interface CreatePaymentDto {
-  orderId: string;
-  method: 'cash' | 'card' | 'wallet' | 'online' | 'bank_transfer' | 'cod';
-  amount?: number;
-}
-
-export interface RefundDto {
-  amount?: number;
-  reason?: string;
-}
-
-export interface PaymentQueryDto extends PaginationQueryDto {
-  status?: string;
-  method?: string;
-  merchantId?: string;
-  from?: string;
-  to?: string;
-}
+import { CreatePaymentDto, PaymentQueryDto, RefundDto } from './dto/payment.dto';
 
 @Injectable()
 export class PaymentsService {

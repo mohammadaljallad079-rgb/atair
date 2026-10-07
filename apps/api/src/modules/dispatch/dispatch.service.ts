@@ -139,6 +139,46 @@ export class DispatchService {
     });
   }
 
+  /**
+   * Dispatch board: unassigned vs active orders plus driver availability, all
+   * tenant-scoped. Powers the operational Dispatch Control Center without any
+   * client-side aggregation or mock data.
+   */
+  async board(tenantId: string) {
+    const [unassigned, active, availableDrivers, busyDrivers] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where: { tenantId, driverId: null, status: { in: ['pending', 'confirmed', 'searching_driver'] } },
+        select: {
+          id: true, orderNumber: true, status: true, deliveryType: true, total: true, currency: true,
+          pickupAddress: true, dropoffAddress: true, distanceKm: true, createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+      }),
+      this.prisma.order.findMany({
+        where: { tenantId, driverId: { not: null }, status: { in: ['assigned', 'driver_arriving', 'picked_up', 'in_transit', 'arriving'] } },
+        select: {
+          id: true, orderNumber: true, status: true, total: true, currency: true,
+          pickupAddress: true, dropoffAddress: true, createdAt: true,
+          driver: { select: { id: true, fullName: true, phone: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 200,
+      }),
+      this.prisma.driver.findMany({
+        where: { tenantId, status: 'online', isAvailable: true },
+        select: { id: true, fullName: true, phone: true, status: true, rating: true, completedOrders: true },
+        orderBy: { fullName: 'asc' },
+      }),
+      this.prisma.driver.findMany({
+        where: { tenantId, status: 'busy' },
+        select: { id: true, fullName: true, phone: true, status: true, rating: true, completedOrders: true },
+        orderBy: { fullName: 'asc' },
+      }),
+    ]);
+    return { unassigned, active, availableDrivers, busyDrivers };
+  }
+
   /** Clears pending offers once an order is assigned or closed. */
   async closeForOrder(orderId: string) {
     await this.prisma.orderAssignment.updateMany({

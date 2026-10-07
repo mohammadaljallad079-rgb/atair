@@ -2,39 +2,43 @@
 
 import { useState } from 'react';
 import { endpoints } from '@/lib/endpoints';
-import { useAsync } from '@/lib/use-async';
+import { useResourceList } from '@/lib/use-resource-list';
 import { useI18n } from '@/i18n/provider';
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api';
 import { formatMoney, formatDateTime } from '@/lib/format';
 import { PageHeader, Card, ErrorState, LoadingState, EmptyState } from '@/components/ui/primitives';
 import { DataTable, Column } from '@/components/ui/data-table';
+import { Pagination } from '@/components/ui/pagination';
+import { FilterBar, Modal } from '@/components/ui/filters';
+import { SearchInput, Field, TextInput, Select } from '@/components/ui/field';
 import { Button } from '@/components/ui/button';
-import { Modal } from '@/components/ui/filters';
-import { Field, TextInput, Select } from '@/components/ui/field';
-import { RequirePermission } from '@/components/ui/permission-gate';
+import { PermissionGate, RequirePermission } from '@/components/ui/permission-gate';
 import type { DriverWallet, WalletTransaction } from '@/lib/types';
+
+type AdjustType = 'credit' | 'debit' | 'payout' | 'adjustment';
 
 export default function WalletsPage() {
   const { t, locale } = useI18n();
   const { notify } = useToast();
-  const wallets = useAsync(() => endpoints.wallets(), []);
+  const list = useResourceList<DriverWallet>((query, signal) => endpoints.wallets(query), { pageSize: 20 });
 
   const [selected, setSelected] = useState<DriverWallet | null>(null);
   const [txs, setTxs] = useState<WalletTransaction[]>([]);
   const [loadingTxs, setLoadingTxs] = useState(false);
 
   const [adjustFor, setAdjustFor] = useState<DriverWallet | null>(null);
-  const [type, setType] = useState<'credit' | 'debit' | 'adjustment'>('credit');
+  const [type, setType] = useState<AdjustType>('credit');
   const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
+  const [reason, setReason] = useState('');
+  const [adjustError, setAdjustError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function openDetail(w: DriverWallet) {
     setSelected(w);
     setLoadingTxs(true);
     try {
-      const full = await endpoints.driverWallet(w.driverId);
+      const full = await endpoints.driverWallet(w.driverId, { pageSize: 100 });
       setTxs(full.transactions ?? []);
     } catch {
       setTxs([]);
@@ -43,20 +47,32 @@ export default function WalletsPage() {
     }
   }
 
+  function openAdjust(w: DriverWallet) {
+    setAdjustFor(w);
+    setType('credit');
+    setAmount('');
+    setReason('');
+    setAdjustError(null);
+  }
+
   async function doAdjust() {
-    if (!adjustFor || !amount) return;
+    if (!adjustFor) return;
+    setAdjustError(null);
+    const value = Number(amount);
+    if (!value || value <= 0) {
+      setAdjustError(t('common.required'));
+      return;
+    }
+    if (!reason.trim()) {
+      setAdjustError(t('wallets.reasonRequired'));
+      return;
+    }
     setBusy(true);
     try {
-      await endpoints.adjustWallet(adjustFor.driverId, {
-        type,
-        amount: Number(amount),
-        description: description || undefined,
-      });
+      await endpoints.adjustWallet(adjustFor.driverId, { type, amount: value, reason: reason.trim() });
       notify(t('common.save'));
       setAdjustFor(null);
-      setAmount('');
-      setDescription('');
-      wallets.reload();
+      list.reload();
     } catch (err) {
       notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
     } finally {
@@ -74,9 +90,9 @@ export default function WalletsPage() {
       render: (r) => (
         <div className="flex justify-end gap-1.5">
           <Button size="sm" variant="secondary" onClick={() => openDetail(r)}>{t('common.details')}</Button>
-          <RequirePermission permission="wallets.manage">
-            <Button size="sm" onClick={() => setAdjustFor(r)}>{t('wallets.adjust')}</Button>
-          </RequirePermission>
+          <PermissionGate permission="wallets.manage">
+            <Button size="sm" onClick={() => openAdjust(r)}>{t('wallets.adjust')}</Button>
+          </PermissionGate>
         </div>
       ),
     },
@@ -84,7 +100,7 @@ export default function WalletsPage() {
 
   const txColumns: Column<WalletTransaction>[] = [
     { key: 'createdAt', header: t('common.createdAt'), render: (r) => formatDateTime(r.createdAt, locale) },
-    { key: 'type', header: t('wallets.txType'), render: (r) => <span>{r.type}</span> },
+    { key: 'type', header: t('wallets.txType'), render: (r) => t(`wallets.type.${r.type}`) },
     { key: 'amount', header: t('payments.amount'), align: 'end', render: (r) => formatMoney(r.amount, 'SAR', locale) },
     { key: 'balanceAfter', header: t('wallets.balanceAfter'), align: 'end', render: (r) => formatMoney(r.balanceAfter, 'SAR', locale) },
     { key: 'reference', header: t('wallets.reference'), render: (r) => r.reference ?? '—' },
@@ -95,18 +111,32 @@ export default function WalletsPage() {
     <RequirePermission permission="wallets.view">
       <PageHeader title={t('wallets.title')} subtitle={t('wallets.subtitle')} />
       <Card>
-        {wallets.error ? <ErrorState error={wallets.error} onRetry={wallets.reload} /> : (
+        <FilterBar onClear={list.resetFilters}>
+          <div className="w-full sm:w-64">
+            <SearchInput value={list.search} onChange={list.setSearch} placeholder={t('common.searchPlaceholder')} />
+          </div>
+        </FilterBar>
+        {list.error ? <ErrorState error={list.error} onRetry={list.reload} /> : (
           <DataTable
             columns={columns}
-            rows={wallets.data ?? []}
+            rows={list.data?.items ?? []}
             rowKey={(r) => r.id}
-            loading={wallets.loading}
+            loading={list.loading}
             stickyHeader
+          />
+        )}
+        {list.data && (
+          <Pagination
+            page={list.data.meta.page}
+            pageSize={list.data.meta.pageSize}
+            total={list.data.meta.total}
+            totalPages={list.data.meta.totalPages}
+            onPageChange={list.setPage}
           />
         )}
       </Card>
 
-      <Modal open={!!selected} onClose={() => setSelected(null)} title={t('wallets.transactions')} wide>
+      <Modal open={!!selected} onClose={() => setSelected(null)} title={t('wallets.ledger')} wide>
         {loadingTxs ? <LoadingState /> : txs.length ? (
           <DataTable columns={txColumns} rows={txs} rowKey={(r) => r.id} />
         ) : <EmptyState />}
@@ -119,26 +149,28 @@ export default function WalletsPage() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setAdjustFor(null)}>{t('common.cancel')}</Button>
-            <Button loading={busy} disabled={!amount} onClick={doAdjust}>{t('common.save')}</Button>
+            <Button loading={busy} disabled={!amount || !reason.trim()} onClick={doAdjust}>{t('common.save')}</Button>
           </>
         }
       >
         <div className="space-y-3">
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{t('wallets.adjustHint')}</p>
           <Field label={t('wallets.driver')}>
             <TextInput value={adjustFor?.driver?.fullName ?? ''} disabled />
           </Field>
           <Field label={t('wallets.txType')} required>
-            <Select value={type} onChange={(e) => setType(e.target.value as typeof type)}>
-              <option value="credit">credit</option>
-              <option value="debit">debit</option>
-              <option value="adjustment">adjustment</option>
+            <Select value={type} onChange={(e) => setType(e.target.value as AdjustType)}>
+              <option value="credit">{t('wallets.type.credit')}</option>
+              <option value="debit">{t('wallets.type.debit')}</option>
+              <option value="payout">{t('wallets.type.payout')}</option>
+              <option value="adjustment">{t('wallets.type.adjustment')}</option>
             </Select>
           </Field>
           <Field label={t('payments.amount')} required>
             <TextInput type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} dir="ltr" />
           </Field>
-          <Field label={t('common.notes')}>
-            <TextInput value={description} onChange={(e) => setDescription(e.target.value)} />
+          <Field label={t('wallets.reason')} required error={adjustError ?? undefined}>
+            <TextInput value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
         </div>
       </Modal>

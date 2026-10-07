@@ -27,6 +27,14 @@ class StatusBody {
   @IsIn(['open', 'pending', 'resolved', 'closed']) status!: string;
 }
 
+class PriorityBody {
+  @IsIn(['low', 'normal', 'high', 'urgent']) priority!: 'low' | 'normal' | 'high' | 'urgent';
+}
+
+class AssignBody {
+  @IsOptional() @IsUUID() assignedToUserId?: string | null;
+}
+
 @ApiTags('support')
 @ApiBearerAuth()
 @Controller('support')
@@ -62,5 +70,17 @@ export class SupportController {
   @RequirePermissions([PERMISSIONS.support_manage])
   setStatus(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: StatusBody, @Ip() ip: string) {
     return this.support.setStatus(user.tenantId, id, dto.status, { userId: user.userId, ip });
+  }
+
+  @Patch('tickets/:id/priority')
+  @RequirePermissions([PERMISSIONS.support_manage])
+  setPriority(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: PriorityBody, @Ip() ip: string) {
+    return this.support.setPriority(user.tenantId, id, dto.priority, { userId: user.userId, ip });
+  }
+
+  @Patch('tickets/:id/assign')
+  @RequirePermissions([PERMISSIONS.support_manage])
+  assign(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AssignBody, @Ip() ip: string) {
+    return this.support.assign(user.tenantId, id, dto.assignedToUserId ?? null, { userId: user.userId, ip });
   }
 }
