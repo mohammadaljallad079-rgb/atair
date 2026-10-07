@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, PartialType } from '@nestjs/swagger';
 import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { CreateVehicleDto, VehicleQueryDto, VehiclesService } from './vehicles.service';
@@ -23,6 +23,8 @@ class VehicleQuery extends PaginationQueryDto implements VehicleQueryDto {
 class VehicleStatusBody {
   @IsIn(['active', 'inactive', 'maintenance']) status!: 'active' | 'inactive' | 'maintenance';
 }
+
+class UpdateVehicleBody extends PartialType(CreateVehicleBody) {}
 
 class AssignVehicleDriverBody {
   @IsUUID() driverId!: string;
@@ -61,7 +63,7 @@ export class VehiclesController {
 
   @Patch(':id')
   @RequirePermissions([PERMISSIONS.vehicles_manage])
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: Partial<CreateVehicleBody>, @Ip() ip: string) {
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateVehicleBody, @Ip() ip: string) {
     return this.vehicles.update(user.tenantId, id, dto, { userId: user.userId, ip });
   }
 

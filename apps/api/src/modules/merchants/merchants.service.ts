@@ -72,7 +72,19 @@ export class MerchantsService {
     actor: { userId: string; ip?: string },
   ) {
     const before = await this.get(tenantId, id);
-    const merchant = await this.prisma.merchant.update({ where: { id }, data: { ...dto, email: dto.email?.toLowerCase() } });
+    // Explicit field pick instead of spreading the request body into Prisma.
+    const merchant = await this.prisma.merchant.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        slug: dto.slug,
+        category: dto.category,
+        phone: dto.phone,
+        email: dto.email?.toLowerCase(),
+        commissionRate: dto.commissionRate,
+        status: dto.status,
+      },
+    });
     await this.audit.log({ tenantId, userId: actor.userId, action: 'merchant.update', entity: 'merchant', entityId: id, before, after: merchant, ip: actor.ip });
     return merchant;
   }

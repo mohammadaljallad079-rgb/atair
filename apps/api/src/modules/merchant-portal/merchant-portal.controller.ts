@@ -10,7 +10,7 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags, PartialType } from '@nestjs/swagger';
 import { Response } from 'express';
 import { PERMISSIONS } from '@atair/db';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -52,6 +52,12 @@ import {
   UpdateMerchantProfileDto,
   UpdateTeamMemberDto,
 } from './dto/merchant-portal.dto';
+
+/**
+ * Update payload for a branch. `PartialType` (not the built-in `Partial`) keeps
+ * the validation metadata at runtime, so the body is actually validated.
+ */
+class UpdateMerchantBranchBody extends PartialType(CreateMerchantBranchDto) {}
 
 @ApiTags('merchant-portal')
 @ApiBearerAuth()
@@ -270,7 +276,7 @@ export class MerchantPortalController {
   async updateBranch(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Body() dto: Partial<CreateMerchantBranchDto>,
+    @Body() dto: UpdateMerchantBranchBody,
     @Ip() ip: string,
   ) {
     const ctx = await this.ctx.resolve(user);

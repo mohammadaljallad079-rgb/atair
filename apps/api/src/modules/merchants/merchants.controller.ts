@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { ApiBearerAuth, ApiTags, PartialType } from '@nestjs/swagger';
+import { IsEmail, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { CreateMerchantDto, MerchantsService } from './merchants.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -22,6 +22,10 @@ class BranchBody {
   @IsOptional() @IsNumber() latitude?: number;
   @IsOptional() @IsNumber() longitude?: number;
   @IsOptional() @IsString() phone?: string;
+}
+
+class UpdateMerchantBody extends PartialType(CreateMerchantBody) {
+  @IsOptional() @IsIn(['active', 'inactive', 'suspended']) status?: 'active' | 'inactive' | 'suspended';
 }
 
 @ApiTags('merchants')
@@ -51,7 +55,7 @@ export class MerchantsController {
 
   @Patch(':id')
   @RequirePermissions([PERMISSIONS.merchants_manage])
-  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: Partial<CreateMerchantBody>, @Ip() ip: string) {
+  update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateMerchantBody, @Ip() ip: string) {
     return this.merchants.update(user.tenantId, id, dto, { userId: user.userId, ip });
   }
 

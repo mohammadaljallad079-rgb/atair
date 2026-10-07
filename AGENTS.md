@@ -60,6 +60,7 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Tenant comes from the signed JWT (`AuthUser.tenantId`), never from client input. All queries must be tenant-scoped.
 - `@Public()` bypasses auth (login/refresh/health). `@RequirePermissions([...])` enforces RBAC; platform admins bypass.
 - DTOs use class-validator + `@nestjs/swagger`. ValidationPipe is `whitelist + forbidNonWhitelisted`, so unknown body fields are rejected.
+- Update bodies MUST be declared with `PartialType(X)` (`@nestjs/swagger`), never the built-in `Partial<X>`. `Partial<>` is a compile-time-only alias: it erases to `Object` in the emitted `design:paramtypes` metadata, and NestJS skips validation for built-in metatypes — so the whole body becomes unvalidated and mass-assignable. Services must also pick fields explicitly instead of spreading the body into Prisma. Regression guard: `src/common/dto/body-metatype.spec.ts`.
 
 ## Prisma gotchas
 - Compound unique keys containing a nullable column (e.g. `Role.tenantId_slug`, `VehicleType.tenantId_slug`, `ServiceZone.tenantId_code`) CANNOT be used in `upsert({ where })` when the nullable part is `null`. Use `findFirst` + `update`/`create` instead (see `packages/db/prisma/seed.ts`).
