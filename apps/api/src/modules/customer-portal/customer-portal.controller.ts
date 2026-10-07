@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Ip, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Ip, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { PERMISSIONS } from '@atair/db';
@@ -103,7 +103,7 @@ export class CustomerPortalController {
   @RequirePermissions([PERMISSIONS.orders_view])
   async updateAddress(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateCustomerAddressBodyDto,
     @Ip() ip: string,
   ) {
@@ -113,7 +113,7 @@ export class CustomerPortalController {
 
   @Delete('addresses/:id')
   @RequirePermissions([PERMISSIONS.orders_view])
-  async deleteAddress(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
+  async deleteAddress(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string, @Ip() ip: string) {
     const ctx = await this.context.resolve(user);
     return this.account.deleteAddress(ctx, id, { userId: user.userId, ip });
   }
@@ -153,21 +153,21 @@ export class CustomerPortalController {
 
   @Get('orders/:id')
   @RequirePermissions([PERMISSIONS.orders_view])
-  async getOrder(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async getOrder(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) {
     const ctx = await this.context.resolve(user);
     return this.orders.get(ctx, id);
   }
 
   @Get('orders/:id/timeline')
   @RequirePermissions([PERMISSIONS.orders_view])
-  async orderTimeline(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async orderTimeline(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) {
     const ctx = await this.context.resolve(user);
     return this.orders.timeline(ctx, id);
   }
 
   @Get('orders/:id/tracking')
   @RequirePermissions([PERMISSIONS.tracking_view])
-  async orderTracking(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async orderTracking(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) {
     const ctx = await this.context.resolve(user);
     return this.orders.tracking(ctx, id);
   }
@@ -176,7 +176,7 @@ export class CustomerPortalController {
   @RequirePermissions([PERMISSIONS.orders_view])
   async cancelOrder(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: CancelCustomerOrderDto,
     @Ip() ip: string,
   ) {
@@ -196,7 +196,7 @@ export class CustomerPortalController {
 
   @Post('notifications/:id/read')
   @RequirePermissions([PERMISSIONS.orders_view])
-  async markNotificationRead(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async markNotificationRead(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) {
     const ctx = await this.context.resolve(user);
     return this.account.markNotificationRead(ctx, user.userId, id);
   }
@@ -220,7 +220,7 @@ export class CustomerPortalController {
 
   @Get('support/tickets/:id')
   @RequirePermissions([PERMISSIONS.orders_view])
-  async getTicket(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async getTicket(@CurrentUser() user: AuthUser, @Param('id', new ParseUUIDPipe()) id: string) {
     const ctx = await this.context.resolve(user);
     return this.support.get(ctx, id);
   }
@@ -229,7 +229,7 @@ export class CustomerPortalController {
   @RequirePermissions([PERMISSIONS.orders_view])
   async addTicketMessage(
     @CurrentUser() user: AuthUser,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: CustomerTicketMessageDto,
     @Ip() ip: string,
   ) {
