@@ -7,6 +7,7 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - `apps/admin` — Admin Control Center: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3001**.
 - `apps/merchant` — Merchant / Business Portal: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3002**. Consumes only `/api/v1/merchant/*` (plus `/auth/*`); a pure merchant principal is blocked from tenant-wide routes by `MerchantBoundaryGuard`.
 - `apps/customer` — Customer Application: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3003**. Consumes only `/api/v1/customer/*` (plus `/auth/*`); a pure customer principal is blocked from tenant-wide routes by `CustomerBoundaryGuard`. Same-origin by default: `next.config.mjs` rewrites `/api/:path*` to `API_PROXY_TARGET` (default `http://localhost:3000`).
+- `apps/web` — Public website (marketing) + public order tracking: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3004**. Fully anonymous — no auth, no session, no tokens. Consumes only `/api/v1/public/*` (`public-site` module): branding/content settings, active service areas, secure tracking by code, and a contact form that persists as a support ticket. Same-origin rewrite to `API_PROXY_TARGET` like the other apps. `robots.ts` + `sitemap.ts` live in `src/app/`.
 - `packages/db` — Prisma schema, migrations, seed, and shared `@atair/db` package (exports `PrismaClient` + `PERMISSIONS`).
 
 ## Commands (run from repo root)
@@ -17,10 +18,11 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Seed: `npm run db:seed` (creates platform + `atair-demo` tenants, RBAC, demo users, Riyadh zone/pricing).
 - API dev: `npm run api:dev` | Build: `npm run api:build`
 - Typecheck (both apps): `npm run typecheck` | Lint (both apps): `npm run lint`
-- API tests: `npm run api:test` | Admin tests: `npm run -w @atair/admin test` | Merchant tests: `npm run -w @atair/merchant test` | Customer tests: `npm run -w @atair/customer test`
+- API tests: `npm run api:test` | Admin tests: `npm run -w @atair/admin test` | Merchant tests: `npm run -w @atair/merchant test` | Customer tests: `npm run -w @atair/customer test` | Web tests: `npm run -w @atair/web test`
 - Admin dev: `npm run admin:dev` | Admin build: `npm run admin:build`
 - Merchant dev: `npm run merchant:dev` | Merchant build: `npm run merchant:build`
 - Customer dev: `npm run customer:dev` | Customer build: `npm run customer:build`
+- Web dev: `npm run web:dev` | Web build: `npm run web:build`
 
 ## Admin app (apps/admin)
 - Next.js App Router under `src/app`; shared UI in `src/components`, API client in `src/lib`.
@@ -45,6 +47,12 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Same-origin API: `next.config.mjs` rewrites `/api/:path*` to `API_PROXY_TARGET` (default `http://localhost:3000`); the browser calls the app's own origin, avoiding mixed content over HTTPS. `NEXT_PUBLIC_API_URL` overrides for a split origin.
 - Design tokens are centralized in `tailwind.config.ts` / `globals.css` (`brand` orange + `ink` blue). Branding always goes through `src/components/brand/brand-logo.tsx`.
 
+## Public website app (apps/web)
+- Marketing site + public order tracking. Anonymous: no middleware auth gate, no session, no tokens — it only ever calls `/api/v1/public/*`.
+- Content comes from the real backend (`PublicSiteService` reads whitelisted `website.*` `SystemSetting` rows) and is fetched once in `src/lib/site-provider.tsx`; pages fall back to built-in defaults when a key is unset. `useSetting(key, fallback)` is the accessor.
+- `src/lib/api.ts` is a minimal fetch client with **no** credentials/refresh logic (unlike the other apps). Tracking code lives in the URL (`/track?code=...`) so it is shareable; `useSearchParams` is wrapped in `<Suspense>` (Next 14 requirement).
+- Default website content is seeded idempotently by `seedWebsiteContent()` in `packages/db/prisma/seed.ts` (never overwrites existing rows). Edit keys from the Admin Control Center → Settings (generic key/value editor).
+
 ## API conventions
 - Global prefix `/api`, URI versioning (default `v1`) → routes are `/api/v1/...`. Swagger at `/api/docs`.
 - Response envelope: success `{ success:true, data, meta? }`; errors `{ success:false, error:{ code, message, details? } }` (see `common/errors/app-error.ts`).
@@ -63,6 +71,7 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Pricing is rule-driven from the DB (`PricingService` + `PricingEngine`); no hardcoded fares. Rules can be scoped by zone/merchant/vehicleType. Orders resolve the pickup service zone (polygon) before quoting.
 - Order status is enforced by `OrderStateMachine` (single source of truth). Transition endpoint body field is `status` (not `to`).
 - Driver wallet is credited on payment settlement (`PaymentsService.markPaid` → `WalletsService.creditForOrder`), idempotent per `order:<id>` reference.
+- Public tracking uses `Order.trackingCode`: a 128-bit opaque, non-sequential secret assigned on order create (`OrdersService.generateTrackingCode`). The public lookup is by code only (never id) and returns a minimal, PII-free snapshot. Never expose phone numbers, driver ids, or customer identities from the public surface.
 
 ## Local env
 - Copy `apps/api/.env.example` → `apps/api/.env`; `packages/db/.env` holds `DATABASE_URL`.
@@ -88,6 +97,6 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
   - `logo-full.{webp,png}` — bird + Arabic wordmark, used for login/branding moments.
   - `logo-mark.{webp,png}` — bird only, used for navigation/compact marks.
   - `favicon-32.png`, `favicon.ico` (16/32/48), `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` (from `icon-180.png`) — app icons/favicons derived from the bird on its light-blue background. Regenerate reproducibly with `python3 public/assets/brand/make_assets.py`; never hand-drawn.
-- All UI branding goes through the shared `BrandLogo` component (`apps/{admin,merchant,customer}/src/components/brand/brand-logo.tsx`, variants `login | full | navigation | compact`). Do not inline the image in pages.
+- All UI branding goes through the shared `BrandLogo` component (`apps/{admin,merchant,customer,web}/src/components/brand/brand-logo.tsx`, variants `login | full | navigation | compact`). Do not inline the image in pages.
 - The artwork must never be mirrored in RTL: only the surrounding layout flips (`dir`), never the logo (`transform` stays `none`).
 - The route-guard middleware must keep excluding static file extensions (`png|jpg|jpeg|webp|svg|ico|gif`) so brand assets/favicons load on the public login screen.

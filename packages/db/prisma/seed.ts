@@ -743,11 +743,50 @@ async function seedOperationsDemo(tenantId: string) {
   }
 }
 
+/**
+ * Default public-website content, stored as tenant settings so the Admin
+ * Control Center can edit it and the website reads it from the real backend.
+ * Only created when absent (idempotent), never overwriting admin edits.
+ */
+async function seedWebsiteContent(tenantId: string) {
+  const defaults: Array<[string, unknown]> = [
+    ['website.enabled', true],
+    ['website.companyName', 'عَ الطاير'],
+    ['website.heroTitle', 'توصيل سريع يصل في الوقت المناسب'],
+    ['website.heroSubtitle', 'منصة عَ الطاير للنقل الداخلي والتوصيل للميل الأخير — من الباب إلى الباب، بأسعار واضحة وتتبّع لحظي.'],
+    ['website.aboutBody', 'عَ الطاير منصة لوجستية سعودية متخصصة في التوصيل للميل الأخير والنقل الداخلي، تربط المتاجر والعملاء بسائقين موثوقين عبر أسطول متنوع ولوحة تحكم متكاملة.'],
+    ['website.contactPhone', '+966500000000'],
+    ['website.contactEmail', 'hello@atair.local'],
+    ['website.contactAddress', 'الرياض، المملكة العربية السعودية'],
+    ['website.contactHours', 'الأحد – الخميس، 9 صباحًا – 6 مساءً'],
+    ['website.socialLinks', { twitter: '', instagram: '', linkedin: '' }],
+    ['website.seoTitle', 'عَ الطاير — توصيل سريع ونقل داخلي'],
+    ['website.seoDescription', 'منصة عَ الطاير للتوصيل للميل الأخير والنقل الداخلي: أسعار واضحة، تتبّع لحظي، وأسطول موثوق.'],
+    ['website.vatNumber', ''],
+    ['website.crn', ''],
+    [
+      'website.faq',
+      [
+        { q: 'ما هي مناطق الخدمة؟', a: 'نغطي حاليًا مدينة الرياض وضواحيها، مع التوسع التدريجي إلى مدن أخرى.' },
+        { q: 'ما طرق الدفع المتاحة؟', a: 'الدفع عند التسليم (COD) والدفع النقدي. لا نوفّر حاليًا بوابة دفع إلكتروني.' },
+        { q: 'كيف أتابع طلبي؟', a: 'أدخل رمز التتبّع الذي يظهر عند إنشاء الطلب في صفحة التتبّع لمعرفة الحالة والموقع المسجّل.' },
+      ],
+    ],
+  ];
+
+  for (const [key, value] of defaults) {
+    const existing = await prisma.systemSetting.findFirst({ where: { tenantId, key } });
+    if (existing) continue;
+    await prisma.systemSetting.create({ data: { tenantId, key, value: value as any } });
+  }
+}
+
 main()
   .then(async () => {
-    // Re-resolve tenants/roles needed for the merchant demo pass.
     const demoTenant = await prisma.tenant.findUnique({ where: { slug: 'atair-demo' } });
     if (demoTenant) {
+      await seedWebsiteContent(demoTenant.id);
+      console.log('   Website content settings seeded');
       const roleRows = await prisma.role.findMany({ where: { tenantId: demoTenant.id } });
       const roles: Record<string, string> = {};
       for (const r of roleRows) roles[r.slug] = r.id;

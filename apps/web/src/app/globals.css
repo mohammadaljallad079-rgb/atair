@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Centralized design tokens. Brand = Orange + Blue.
+ * Components reference these variables / Tailwind brand+ink scales only.
+ */
+:root {
+  --brand-500: #f97316;
+  --brand-600: #ea580c;
+  --ink-600: #2563eb;
+  --ink-800: #1e40af;
+  --surface: #ffffff;
+  --surface-muted: #f8fafc;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  scroll-behavior: smooth;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink-600);
+  outline-offset: 2px;
+}
+
+/* Subtle brand gradient used behind hero sections. */
+.brand-gradient {
+  background-image: linear-gradient(135deg, #fff7ed 0%, #ffffff 45%, #eff6ff 100%);
+}
+
+.brand-ink-gradient {
+  background-image: linear-gradient(120deg, #9a3412 0%, #ea580c 45%, #1e40af 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html,
+  body {
+    scroll-behavior: auto;
+  }
+}
