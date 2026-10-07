@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsArray, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { CreateZoneDto, ZonesService } from './zones.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -13,6 +13,7 @@ class CreateZoneBody implements CreateZoneDto {
   @IsOptional() @IsArray() polygon?: number[][];
   @IsOptional() @IsNumber() centerLat?: number;
   @IsOptional() @IsNumber() centerLng?: number;
+  @IsOptional() @IsBoolean() isActive?: boolean;
 }
 
 @ApiTags('zones')

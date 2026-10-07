@@ -8,13 +8,13 @@ import { useI18n } from '@/i18n/provider';
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api';
 import { formatDateTime } from '@/lib/format';
-import { TICKET_STATUSES } from '@/lib/constants';
+import { TICKET_STATUSES, TICKET_PRIORITIES } from '@/lib/constants';
 import { PageHeader, Card, ErrorState, LoadingState } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
 import { Select, Textarea } from '@/components/ui/field';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { PermissionGate } from '@/components/ui/permission-gate';
-import type { SupportTicketDetail } from '@/lib/types';
+import type { SupportTicketDetail, StaffUser } from '@/lib/types';
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +22,7 @@ export default function TicketDetailPage() {
   const { t, locale } = useI18n();
   const { notify } = useToast();
   const ticket = useAsync<SupportTicketDetail>((signal) => endpoints.ticket(id), [id]);
+  const staff = useAsync(() => endpoints.users({ pageSize: 100 }), []);
   const [reply, setReply] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -43,6 +44,26 @@ export default function TicketDetailPage() {
   async function setStatus(status: string) {
     try {
       await endpoints.setTicketStatus(id, status);
+      notify(t('common.save'));
+      ticket.reload();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
+    }
+  }
+
+  async function setPriority(priority: string) {
+    try {
+      await endpoints.setTicketPriority(id, priority);
+      notify(t('common.save'));
+      ticket.reload();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
+    }
+  }
+
+  async function assign(assignedToUserId: string) {
+    try {
+      await endpoints.assignTicket(id, assignedToUserId || null);
       notify(t('common.save'));
       ticket.reload();
     } catch (err) {
@@ -90,13 +111,32 @@ export default function TicketDetailPage() {
         <Card title={t('common.details')}>
           <dl className="space-y-2 text-sm">
             <div className="flex justify-between"><dt className="text-slate-500">{t('support.priority')}</dt><dd><StatusBadge status={tk.priority} /></dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">{t('support.assignee')}</dt><dd>{tk.assignedToUserId ? tk.assignedToUserId.slice(0, 8) : t('support.unassigned')}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">{t('common.createdAt')}</dt><dd>{formatDateTime(tk.createdAt, locale)}</dd></div>
           </dl>
           <PermissionGate permission="support.manage">
-            <div className="mt-4">
-              <Select value={tk.status} onChange={(e) => setStatus(e.target.value)} aria-label={t('common.status')}>
-                {TICKET_STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
-              </Select>
+            <div className="mt-4 space-y-3">
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-600">{t('common.status')}</p>
+                <Select value={tk.status} onChange={(e) => setStatus(e.target.value)} aria-label={t('common.status')}>
+                  {TICKET_STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
+                </Select>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-600">{t('support.setPriority')}</p>
+                <Select value={tk.priority} onChange={(e) => setPriority(e.target.value)} aria-label={t('support.priority')}>
+                  {TICKET_PRIORITIES.map((p) => <option key={p} value={p}>{t(`status.${p}`)}</option>)}
+                </Select>
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-600">{t('support.assign')}</p>
+                <Select value={tk.assignedToUserId ?? ''} onChange={(e) => assign(e.target.value)} aria-label={t('support.assignee')}>
+                  <option value="">{t('support.unassigned')}</option>
+                  {staff.data?.items.map((u: StaffUser) => (
+                    <option key={u.id} value={u.id}>{u.fullName}</option>
+                  ))}
+                </Select>
+              </div>
             </div>
           </PermissionGate>
         </Card>

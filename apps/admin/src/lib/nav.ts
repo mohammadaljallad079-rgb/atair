@@ -49,6 +49,7 @@ export const NAV_GROUPS: NavGroup[] = [
     labelKey: 'nav.group.administration',
     items: [
       { href: '/audit', labelKey: 'nav.audit', icon: 'shield', permission: 'audit.view' },
+      { href: '/reports', labelKey: 'nav.reports', icon: 'chart', permission: 'reports.view' },
       { href: '/users', labelKey: 'nav.users', icon: 'id', permission: 'users.view' },
       { href: '/roles', labelKey: 'nav.roles', icon: 'key', permission: 'users.view' },
       { href: '/settings', labelKey: 'nav.settings', icon: 'cog', permission: 'settings.view' },

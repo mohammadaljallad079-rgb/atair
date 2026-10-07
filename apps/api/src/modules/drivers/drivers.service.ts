@@ -48,7 +48,16 @@ export class DriversService {
       },
     });
     if (!driver) throw Errors.notFound('driver');
-    return driver;
+    const activeAssignment = await this.prisma.order.findFirst({
+      where: {
+        tenantId,
+        driverId: id,
+        status: { in: ['assigned', 'driver_arriving', 'picked_up', 'in_transit', 'arriving'] },
+      },
+      select: { id: true, orderNumber: true, status: true, total: true, currency: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return { ...driver, activeAssignment };
   }
 
   async create(tenantId: string, dto: CreateDriverDto, actor: { userId: string; ip?: string }) {
@@ -104,6 +113,46 @@ export class DriversService {
 
   async suspend(tenantId: string, id: string, reason: string | undefined, actor: { userId: string; ip?: string }) {
     return this.setStatus(tenantId, id, 'suspended', reason, actor);
+  }
+
+  /**
+   * Lifts a suspension and returns the driver to offline. Suspension is a
+   * reversible operational action (never a hard delete); reactivation is
+   * audited like any other status change.
+   */
+  async unsuspend(tenantId: string, id: string, actor: { userId: string; ip?: string }) {
+    const driver = await this.prisma.driver.findFirst({ where: { id, tenantId } });
+    if (!driver) throw Errors.notFound('driver');
+    if (driver.status !== 'suspended') {
+      throw Errors.conflict('DRIVER_NOT_SUSPENDED', 'Driver is not currently suspended');
+    }
+    const updated = await this.prisma.driver.update({
+      where: { id },
+      data: { status: 'offline', isAvailable: false, suspendedReason: null },
+    });
+    await this.prisma.driverStatusLog.create({
+      data: { tenantId, driverId: id, fromStatus: 'suspended', toStatus: 'offline', reason: 'unsuspended' },
+    });
+    await this.audit.log({
+      tenantId, userId: actor.userId, action: 'driver.unsuspend', entity: 'driver', entityId: id,
+      before: { status: 'suspended' }, after: { status: 'offline' }, ip: actor.ip,
+    });
+    return updated;
+  }
+
+  /** Toggles a driver's availability independently of their online status. */
+  async setAvailability(tenantId: string, id: string, isAvailable: boolean, actor: { userId: string; ip?: string }) {
+    const driver = await this.prisma.driver.findFirst({ where: { id, tenantId } });
+    if (!driver) throw Errors.notFound('driver');
+    if (driver.status === 'suspended' && isAvailable) {
+      throw Errors.conflict('DRIVER_SUSPENDED', 'A suspended driver cannot be made available');
+    }
+    const updated = await this.prisma.driver.update({ where: { id }, data: { isAvailable } });
+    await this.audit.log({
+      tenantId, userId: actor.userId, action: 'driver.availability_change', entity: 'driver', entityId: id,
+      before: { isAvailable: driver.isAvailable }, after: { isAvailable }, ip: actor.ip,
+    });
+    return updated;
   }
 
   async updateLocation(tenantId: string, id: string, dto: UpdateDriverLocationDto) {
@@ -180,5 +229,20 @@ export class DriversService {
       tenantId, userId: actor.userId, action: 'driver.vehicle_assign', entity: 'driver', entityId: driverId, after: { vehicleId }, ip: actor.ip,
     });
     return link;
+  }
+
+  async unassignVehicle(tenantId: string, driverId: string, vehicleId: string, actor: { userId: string; ip?: string }) {
+    await this.get(tenantId, driverId);
+    const link = await this.prisma.driverVehicle.findFirst({ where: { driverId, vehicleId } });
+    if (!link) throw Errors.notFound('driver_vehicle');
+    await this.prisma.driverVehicle.update({
+      where: { driverId_vehicleId: { driverId, vehicleId } },
+      data: { isActive: false },
+    });
+    await this.audit.log({
+      tenantId, userId: actor.userId, action: 'driver.vehicle_unassign', entity: 'driver', entityId: driverId,
+      before: { vehicleId }, ip: actor.ip,
+    });
+    return this.get(tenantId, driverId);
   }
 }

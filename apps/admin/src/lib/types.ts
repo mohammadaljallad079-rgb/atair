@@ -99,6 +99,10 @@ export interface DriverDetail extends Driver {
   documents: Array<{ id: string; type: string; fileUrl: string; status: string; expiresAt: string | null; rejectReason: string | null }>;
   vehicles: Array<{ vehicleId: string; isActive: boolean; vehicle: Vehicle }>;
   wallet: { id: string; balance: string; pending: string; currency: string } | null;
+  activeAssignment?: {
+    id: string; orderNumber: string; status: OrderStatus;
+    total: string; currency: string; createdAt: string;
+  } | null;
 }
 
 // ---- Customers ----
@@ -109,6 +113,10 @@ export interface Customer {
 }
 export interface CustomerDetail extends Customer {
   addresses: Array<{ id: string; label: string; address: string; latitude: number | null; longitude: number | null; isDefault: boolean }>;
+  orders?: Array<{
+    id: string; orderNumber: string; status: OrderStatus;
+    total: string; currency: string; paymentStatus: PaymentStatus; createdAt: string;
+  }>;
 }
 
 // ---- Merchants ----
@@ -120,6 +128,8 @@ export interface Merchant {
 }
 export interface MerchantDetail extends Merchant {
   branches: Array<{ id: string; name: string; address: string; latitude: number | null; longitude: number | null; phone: string | null; status: string }>;
+  users?: Array<{ merchantId: string; role: string; user: { id: string; fullName: string; email: string | null; phone: string | null; status: string } }>;
+  orderCount?: number;
 }
 
 // ---- Vehicles ----
@@ -128,6 +138,14 @@ export interface Vehicle {
   year?: number | null; color?: string | null;
   status: 'active' | 'inactive' | 'maintenance';
   vehicleTypeId?: string | null; createdAt: string;
+  vehicleType?: VehicleType | null;
+  drivers?: Array<{ driverId: string; isActive: boolean; driver: { id: string; fullName: string; phone: string; status: string } }>;
+}
+export interface VehicleDetail extends Vehicle {
+  drivers: Array<{
+    driverId: string; isActive: boolean; assignedAt: string;
+    driver: { id: string; fullName: string; phone: string; status: string; verificationStatus: string };
+  }>;
 }
 export interface VehicleType {
   id: string; name: string; slug: string; capacityKg: number | null; maxWeightKg: number | null; isActive: boolean;
@@ -265,6 +283,32 @@ export interface DispatchOffer {
   id: string; orderId: string; driverId: string;
   method: string; status: string; distanceKm: string | null;
   respondedAt: string | null; createdAt: string;
+}
+export interface DispatchBoard {
+  unassigned: Array<{
+    id: string; orderNumber: string; status: OrderStatus; deliveryType: string;
+    total: string; currency: string; pickupAddress: string; dropoffAddress: string;
+    distanceKm: string | null; createdAt: string;
+  }>;
+  active: Array<{
+    id: string; orderNumber: string; status: OrderStatus; total: string; currency: string;
+    pickupAddress: string; dropoffAddress: string; createdAt: string;
+    driver: { id: string; fullName: string; phone: string } | null;
+  }>;
+  availableDrivers: Array<{ id: string; fullName: string; phone: string; status: string; rating: number | null; completedOrders: number }>;
+  busyDrivers: Array<{ id: string; fullName: string; phone: string; status: string; rating: number | null; completedOrders: number }>;
+}
+
+// ---- Reports ----
+export interface DriverReportRow {
+  id: string; fullName: string; status: string; verificationStatus: string;
+  isAvailable: boolean; rating: number | null;
+  completedOrders: number; cancelledOrders: number; totalEarnings: string;
+  completedInRange: number; revenueInRange: number;
+}
+export interface MerchantReportRow {
+  id: string; name: string; slug: string; status: string; commissionRate: string | null;
+  orders: number; delivered: number; revenue: number;
 }
 
 // ---- Settings ----

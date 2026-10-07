@@ -1,6 +1,7 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Res } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString } from 'class-validator';
+import type { Response } from 'express';
 import { PERMISSIONS } from '@atair/db';
 import { ReportsService } from './reports.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -17,6 +18,10 @@ class DashboardQuery {
 class TimeseriesQuery extends DashboardQuery {
   @IsOptional() @IsIn(['day', 'hour'])
   bucket?: 'day' | 'hour';
+}
+
+class ExportQuery extends DashboardQuery {
+  @IsOptional() @IsString() status?: string;
 }
 
 @ApiTags('reports')
@@ -50,5 +55,29 @@ export class ReportsController {
   @RequirePermissions([PERMISSIONS.reports_view])
   operations(@CurrentUser() user: AuthUser) {
     return this.reports.operations(user.tenantId);
+  }
+
+  @Get('drivers')
+  @RequirePermissions([PERMISSIONS.reports_view])
+  drivers(@CurrentUser() user: AuthUser, @Query() q: DashboardQuery) {
+    const range = ReportsService.resolveRange(q.preset, q.from, q.to);
+    return this.reports.driversReport(user.tenantId, range);
+  }
+
+  @Get('merchants')
+  @RequirePermissions([PERMISSIONS.reports_view])
+  merchants(@CurrentUser() user: AuthUser, @Query() q: DashboardQuery) {
+    const range = ReportsService.resolveRange(q.preset, q.from, q.to);
+    return this.reports.merchantsReport(user.tenantId, range);
+  }
+
+  @Get('export/orders')
+  @RequirePermissions([PERMISSIONS.reports_export])
+  async exportOrders(@CurrentUser() user: AuthUser, @Query() q: ExportQuery, @Res() res: Response) {
+    const range = ReportsService.resolveRange(q.preset, q.from, q.to);
+    const csv = await this.reports.exportOrdersCsv(user.tenantId, range, q.status);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
+    res.send(csv);
   }
 }

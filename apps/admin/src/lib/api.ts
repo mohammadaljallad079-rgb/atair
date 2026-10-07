@@ -224,6 +224,25 @@ export const api = {
   async put<T>(path: string, body?: unknown): Promise<T> {
     return (await request<T>(path, { method: 'PUT', body })).data;
   },
+  async delete<T>(path: string): Promise<T> {
+    return (await request<T>(path, { method: 'DELETE' })).data;
+  },
+  /**
+   * Fetches a binary/text response with authentication and returns it as a Blob.
+   * Used for report exports, where a plain <a href> could not carry the bearer
+   * token held in memory.
+   */
+  async download(path: string, query?: Record<string, unknown>): Promise<Blob> {
+    const headers: Record<string, string> = {};
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    let res = await fetch(`${BASE}${path}${toQuery(query)}`, { headers, cache: 'no-store' });
+    if (res.status === 401 && (await refreshSession())) {
+      headers.Authorization = `Bearer ${accessToken}`;
+      res = await fetch(`${BASE}${path}${toQuery(query)}`, { headers, cache: 'no-store' });
+    }
+    if (!res.ok) throw new ApiError(res.status, 'HTTP_ERROR', `Export failed (${res.status})`);
+    return res.blob();
+  },
 };
 
 export const apiBaseUrl = API_URL;

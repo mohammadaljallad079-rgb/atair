@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { DriversService } from './drivers.service';
 import {
@@ -12,6 +13,14 @@ import {
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { paginated } from '../../common/dto/pagination.dto';
+
+class SuspendBody {
+  @IsOptional() @IsString() reason?: string;
+}
+
+class AvailabilityBody {
+  @IsBoolean() isAvailable!: boolean;
+}
 
 @ApiTags('drivers')
 @ApiBearerAuth()
@@ -55,10 +64,27 @@ export class DriversController {
   suspend(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Body() body: { reason?: string },
+    @Body() body: SuspendBody,
     @Ip() ip: string,
   ) {
     return this.drivers.suspend(user.tenantId, id, body?.reason, { userId: user.userId, ip });
+  }
+
+  @Post(':id/unsuspend')
+  @RequirePermissions([PERMISSIONS.drivers_suspend])
+  unsuspend(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
+    return this.drivers.unsuspend(user.tenantId, id, { userId: user.userId, ip });
+  }
+
+  @Patch(':id/availability')
+  @RequirePermissions([PERMISSIONS.drivers_update])
+  setAvailability(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body() body: AvailabilityBody,
+    @Ip() ip: string,
+  ) {
+    return this.drivers.setAvailability(user.tenantId, id, body.isAvailable, { userId: user.userId, ip });
   }
 
   @Post(':id/location')
@@ -88,5 +114,16 @@ export class DriversController {
     @Ip() ip: string,
   ) {
     return this.drivers.assignVehicle(user.tenantId, id, vehicleId, { userId: user.userId, ip });
+  }
+
+  @Post(':id/vehicle/:vehicleId/unassign')
+  @RequirePermissions([PERMISSIONS.drivers_update])
+  unassignVehicle(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Param('vehicleId') vehicleId: string,
+    @Ip() ip: string,
+  ) {
+    return this.drivers.unassignVehicle(user.tenantId, id, vehicleId, { userId: user.userId, ip });
   }
 }

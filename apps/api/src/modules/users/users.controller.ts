@@ -1,8 +1,8 @@
-import { Body, Controller, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { IsArray, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
-import { CreateUserDto, UpdateUserDto, UsersService } from './users.service';
+import { CreateUserDto, UpdateUserDto, UpsertRoleDto, UsersService } from './users.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto, paginated } from '../../common/dto/pagination.dto';
@@ -24,6 +24,13 @@ class UpdateUserBody implements UpdateUserDto {
   @IsOptional() @IsArray() roleSlugs?: string[];
 }
 
+class UpsertRoleBody implements UpsertRoleDto {
+  @IsString() @IsNotEmpty() name!: string;
+  @IsOptional() @IsString() slug?: string;
+  @IsOptional() @IsString() description?: string;
+  @IsArray() permissions!: string[];
+}
+
 @ApiTags('users')
 @ApiBearerAuth()
 @Controller('users')
@@ -43,6 +50,24 @@ export class UsersController {
     return this.users.listRoles(user.tenantId);
   }
 
+  @Post('roles')
+  @RequirePermissions([PERMISSIONS.users_manage_roles])
+  createRole(@CurrentUser() user: AuthUser, @Body() dto: UpsertRoleBody, @Ip() ip: string) {
+    return this.users.createRole(user.tenantId, dto, this.actor(user, ip));
+  }
+
+  @Patch('roles/:id')
+  @RequirePermissions([PERMISSIONS.users_manage_roles])
+  updateRole(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: Partial<UpsertRoleBody>, @Ip() ip: string) {
+    return this.users.updateRole(user.tenantId, id, dto, this.actor(user, ip));
+  }
+
+  @Delete('roles/:id')
+  @RequirePermissions([PERMISSIONS.users_manage_roles])
+  deleteRole(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
+    return this.users.deleteRole(user.tenantId, id, this.actor(user, ip));
+  }
+
   @Get('permissions')
   @RequirePermissions([PERMISSIONS.users_manage_roles])
   permissions() {
@@ -58,12 +83,28 @@ export class UsersController {
   @Post()
   @RequirePermissions([PERMISSIONS.users_create])
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateUserBody, @Ip() ip: string) {
-    return this.users.create(user.tenantId, dto, { userId: user.userId, ip });
+    return this.users.create(user.tenantId, dto, this.actor(user, ip));
   }
 
   @Patch(':id')
   @RequirePermissions([PERMISSIONS.users_update])
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateUserBody, @Ip() ip: string) {
-    return this.users.update(user.tenantId, id, dto, { userId: user.userId, ip });
+    return this.users.update(user.tenantId, id, dto, this.actor(user, ip));
+  }
+
+  @Post(':id/reset-password')
+  @RequirePermissions([PERMISSIONS.users_update])
+  resetPassword(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
+    return this.users.resetPassword(user.tenantId, id, this.actor(user, ip));
+  }
+
+  @Post(':id/revoke-sessions')
+  @RequirePermissions([PERMISSIONS.users_update])
+  revokeSessions(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
+    return this.users.revokeSessions(user.tenantId, id, this.actor(user, ip));
+  }
+
+  private actor(user: AuthUser, ip: string) {
+    return { userId: user.userId, ip, permissions: user.permissions, isPlatformAdmin: user.isPlatformAdmin };
   }
 }

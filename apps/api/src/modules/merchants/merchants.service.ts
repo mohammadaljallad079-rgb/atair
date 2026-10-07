@@ -35,10 +35,16 @@ export class MerchantsService {
   async get(tenantId: string, id: string) {
     const merchant = await this.prisma.merchant.findFirst({
       where: { id, tenantId },
-      include: { branches: true },
+      include: {
+        branches: true,
+        users: {
+          include: { user: { select: { id: true, fullName: true, email: true, phone: true, status: true } } },
+        },
+      },
     });
     if (!merchant) throw Errors.notFound('merchant');
-    return merchant;
+    const orderCount = await this.prisma.order.count({ where: { tenantId, merchantId: id } });
+    return { ...merchant, orderCount };
   }
 
   async create(tenantId: string, dto: CreateMerchantDto, actor: { userId: string; ip?: string }) {
