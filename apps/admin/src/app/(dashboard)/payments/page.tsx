@@ -11,8 +11,8 @@ import { PAYMENT_STATUSES, PAYMENT_METHODS } from '@/lib/constants';
 import { PageHeader, Card } from '@/components/ui/primitives';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Pagination } from '@/components/ui/pagination';
-import { FilterBar } from '@/components/ui/filters';
-import { SearchInput, Select } from '@/components/ui/field';
+import { FilterBar, Modal, ConfirmDialog } from '@/components/ui/filters';
+import { SearchInput, Select, Field, TextInput } from '@/components/ui/field';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { Button } from '@/components/ui/button';
 import { PermissionGate, RequirePermission } from '@/components/ui/permission-gate';
@@ -25,11 +25,45 @@ export default function PaymentsPage() {
 
   const list = useResourceList<Payment>((query, signal) => endpoints.payments(query), { pageSize: 20 });
 
-  async function markPaid(p: Payment) {
-    setBusyId(p.id);
+  const [detail, setDetail] = useState<Payment | null>(null);
+  const [refundFor, setRefundFor] = useState<Payment | null>(null);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+  const [refundError, setRefundError] = useState<string | null>(null);
+  const [markPaidFor, setMarkPaidFor] = useState<Payment | null>(null);
+
+  function remainingOf(p: Payment) {
+    return Math.max(0, Number(p.amount) - Number(p.refundedAmount));
+  }
+
+  function openRefund(p: Payment) {
+    setRefundFor(p);
+    setRefundAmount(remainingOf(p).toFixed(2));
+    setRefundReason('');
+    setRefundError(null);
+  }
+
+  async function doRefund() {
+    if (!refundFor) return;
+    setRefundError(null);
+    const value = Number(refundAmount);
+    if (!value || value <= 0) {
+      setRefundError(t('common.required'));
+      return;
+    }
+    if (value > remainingOf(refundFor)) {
+      setRefundError(t('payments.overRefund'));
+      return;
+    }
+    if (!refundReason.trim()) {
+      setRefundError(t('payments.refundReasonRequired'));
+      return;
+    }
+    setBusyId(refundFor.id);
     try {
-      await endpoints.markPaymentPaid(p.id);
-      notify(t('payments.markPaid'));
+      await endpoints.refundPayment(refundFor.id, value, refundReason.trim());
+      notify(t('payments.refund'));
+      setRefundFor(null);
       list.reload();
     } catch (err) {
       notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
@@ -38,11 +72,13 @@ export default function PaymentsPage() {
     }
   }
 
-  async function refund(p: Payment) {
-    setBusyId(p.id);
+  async function doMarkPaid() {
+    if (!markPaidFor) return;
+    setBusyId(markPaidFor.id);
     try {
-      await endpoints.refundPayment(p.id, Number(p.amount));
-      notify(t('payments.refund'));
+      await endpoints.markPaymentPaid(markPaidFor.id);
+      notify(t('payments.markPaid'));
+      setMarkPaidFor(null);
       list.reload();
     } catch (err) {
       notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
@@ -64,16 +100,17 @@ export default function PaymentsPage() {
       key: 'actions', header: t('common.actions'), align: 'end',
       render: (r) => (
         <div className="flex justify-end gap-1.5">
+          <Button size="sm" variant="ghost" onClick={() => setDetail(r)}>{t('common.details')}</Button>
           <PermissionGate permission="payments.manage">
             {r.status === 'pending' && (
-              <Button size="sm" variant="success" loading={busyId === r.id} onClick={() => markPaid(r)}>
+              <Button size="sm" variant="success" loading={busyId === r.id} onClick={() => setMarkPaidFor(r)}>
                 {t('payments.markPaid')}
               </Button>
             )}
           </PermissionGate>
           <PermissionGate permission="payments.refund">
-            {(r.status === 'paid' || r.status === 'partially_refunded') && (
-              <Button size="sm" variant="secondary" loading={busyId === r.id} onClick={() => refund(r)}>
+            {(r.status === 'paid' || r.status === 'partially_refunded') && remainingOf(r) > 0 && (
+              <Button size="sm" variant="secondary" onClick={() => openRefund(r)}>
                 {t('payments.refund')}
               </Button>
             )}
@@ -129,6 +166,75 @@ export default function PaymentsPage() {
           />
         )}
       </Card>
+
+      <Modal open={!!detail} onClose={() => setDetail(null)} title={t('payments.details')} wide>
+        {detail && (
+          <div className="space-y-3 text-sm">
+            <div className="grid grid-cols-2 gap-2">
+              <span className="text-slate-500">{t('payments.order')}</span>
+              <span>{detail.order?.orderNumber ?? '—'}</span>
+              <span className="text-slate-500">{t('orders.customer')}</span>
+              <span>{detail.customer?.fullName ?? '—'}</span>
+              <span className="text-slate-500">{t('payments.amount')}</span>
+              <span>{formatMoney(detail.amount, detail.currency, locale)}</span>
+              <span className="text-slate-500">{t('payments.remaining')}</span>
+              <span>{formatMoney(String(remainingOf(detail)), detail.currency, locale)}</span>
+              <span className="text-slate-500">{t('payments.provider')}</span>
+              <span dir="ltr">{detail.provider ?? '—'}</span>
+              <span className="text-slate-500">{t('payments.reference')}</span>
+              <span dir="ltr">{detail.providerRef ?? '—'}</span>
+              <span className="text-slate-500">{t('common.status')}</span>
+              <span><StatusBadge status={detail.status} /></span>
+            </div>
+            <div>
+              <h3 className="mb-1 text-xs font-semibold text-slate-600">{t('payments.refundHistory')}</h3>
+              {detail.refunds?.length ? (
+                <ul className="space-y-1">
+                  {detail.refunds.map((rf) => (
+                    <li key={rf.id} className="flex items-center justify-between border-b border-slate-100 py-1 text-xs">
+                      <span>{formatMoney(rf.amount, detail.currency, locale)}</span>
+                      <span className="text-slate-500">{rf.reason ?? '—'}</span>
+                      <StatusBadge status={rf.status} />
+                      <span className="text-slate-400">{formatDateTime(rf.createdAt, locale)}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="text-xs text-slate-400">{t('payments.noRefunds')}</p>}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!refundFor}
+        onClose={() => setRefundFor(null)}
+        title={t('payments.refund')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setRefundFor(null)}>{t('common.cancel')}</Button>
+            <Button variant="danger" loading={busyId === refundFor?.id} onClick={doRefund}>{t('payments.refund')}</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Field label={t('payments.amount')} required hint={`${t('payments.remaining')}: ${refundFor ? formatMoney(String(remainingOf(refundFor)), refundFor.currency, locale) : '—'}`}>
+            <TextInput type="number" min="0" step="0.01" value={refundAmount} onChange={(e) => setRefundAmount(e.target.value)} dir="ltr" />
+          </Field>
+          <Field label={t('payments.refundReason')} required error={refundError ?? undefined}>
+            <TextInput value={refundReason} onChange={(e) => setRefundReason(e.target.value)} />
+          </Field>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!markPaidFor}
+        title={t('payments.markPaid')}
+        message={t('payments.markPaidConfirm')}
+        tone="primary"
+        loading={busyId === markPaidFor?.id}
+        onConfirm={doMarkPaid}
+        onCancel={() => setMarkPaidFor(null)}
+      />
     </RequirePermission>
   );
 }

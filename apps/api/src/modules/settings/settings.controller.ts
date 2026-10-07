@@ -1,14 +1,10 @@
 import { Body, Controller, Get, Ip, Param, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { SettingsService } from './settings.service';
+import { SetSettingBody } from './dto/settings.dto';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-
-class SetSettingBody {
-  @IsString() @IsNotEmpty() value!: any;
-}
 
 @ApiTags('settings')
 @ApiBearerAuth()

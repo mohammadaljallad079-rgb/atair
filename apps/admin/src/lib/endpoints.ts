@@ -1,11 +1,11 @@
 import { api } from './api';
 import type {
   ActivityLog, ApiLog, Customer, CustomerDetail, DashboardData, DispatchBoard, DispatchOffer, Driver,
-  DriverDetail, DriverReportRow, DriverWallet, HealthStatus, LiveOps, LoginResponse, Merchant,
-  MerchantDetail, MerchantReportRow, Notification, OperationsSummary, OrderDetail, OrderListItem,
-  Paginated, Payment, Permission, PriceQuote, PricingRule, Role, SecurityEvent, ServiceZone, StaffUser,
-  StatusCount, SupportTicket, SupportTicketDetail, SystemSetting, TimeseriesPoint, Vehicle,
-  VehicleDetail, VehicleType,
+  DriverDetail, DriverReportRow, DriverWallet, HealthStatus, LiveOps, LiveOverview, LoginResponse, Merchant,
+  MerchantDetail, MerchantReportRow, Notification, NotificationDetail, NotificationTemplate, OperationsSummary,
+  OrderDetail, OrderListItem, Paginated, Payment, Permission, PriceQuote, PricingRule, Role, SecurityEvent,
+  ServiceZone, StaffUser, StatusCount, SupportTicket, SupportTicketDetail, SystemSetting, TimeseriesPoint,
+  Vehicle, VehicleDetail, VehicleType,
 } from './types';
 
 type Q = Record<string, unknown>;
@@ -28,6 +28,7 @@ export const endpoints = {
   // Reports
   dashboard: (q: Q) => api.get<DashboardData>('/reports/dashboard', q),
   operations: () => api.get<OperationsSummary>('/reports/operations'),
+  liveOverview: () => api.get<LiveOverview>('/reports/live-overview'),
   timeseries: (q: Q) => api.get<TimeseriesPoint[]>('/reports/timeseries', q),
   ordersByStatus: (q: Q) => api.get<StatusCount[]>('/reports/orders-by-status', q),
 
@@ -98,9 +99,9 @@ export const endpoints = {
   refundPayment: (id: string, amount?: number, reason?: string) =>
     api.post<Payment>(`/payments/${id}/refund`, { amount, reason }),
 
-  // Wallets
-  wallets: () => api.get<DriverWallet[]>('/wallets'),
-  driverWallet: (driverId: string) => api.get<DriverWallet>(`/wallets/driver/${driverId}`),
+  // Wallets (ledger)
+  wallets: (q: Q) => api.getList<DriverWallet>('/wallets', q),
+  driverWallet: (driverId: string, q?: Q) => api.get<DriverWallet>(`/wallets/driver/${driverId}`, q),
   adjustWallet: (driverId: string, body: unknown) => api.post<DriverWallet>(`/wallets/driver/${driverId}/adjust`, body),
 
   // Support
@@ -115,6 +116,10 @@ export const endpoints = {
 
   // Notifications
   notifications: (q: Q) => api.getList<Notification>('/notifications', q),
+  notification: (id: string) => api.get<NotificationDetail>(`/notifications/${id}`),
+  notificationTemplates: () => api.get<NotificationTemplate[]>('/notifications/templates'),
+  sendNotification: (body: unknown) => api.post<Notification>('/notifications/send', body),
+  retryNotification: (id: string) => api.post<Notification>(`/notifications/${id}/retry`),
   markNotificationRead: (id: string) => api.post<Notification>(`/notifications/${id}/read`),
 
   // Audit

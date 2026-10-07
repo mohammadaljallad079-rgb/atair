@@ -17,6 +17,22 @@ export type PricingComponentType =
   | 'scheduled_fee'
   | 'cod_fee';
 
+/** Canonical runtime list — must stay in sync with the Prisma enum. */
+export const PRICING_COMPONENT_TYPES: PricingComponentType[] = [
+  'base_fare',
+  'distance_fare',
+  'time_fare',
+  'zone_fare',
+  'vehicle_fare',
+  'weight_surcharge',
+  'size_surcharge',
+  'waiting_fee',
+  'night_surcharge',
+  'peak_surcharge',
+  'scheduled_fee',
+  'cod_fee',
+];
+
 export interface PricingComponentInput {
   type: PricingComponentType;
   amount: number;

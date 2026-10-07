@@ -9,7 +9,7 @@ import { useAuth } from '@/lib/auth-provider';
 import { useToast } from '@/components/ui/toast';
 import { ApiError } from '@/lib/api';
 import { formatMoney, formatDateTime, formatDistance } from '@/lib/format';
-import { nextOrderStatuses } from '@/lib/constants';
+import { ORDER_STATUSES, nextOrderStatuses } from '@/lib/constants';
 import { PageHeader, Card, ErrorState, LoadingState, MetricCard } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
@@ -43,10 +43,15 @@ export default function OrderDetailPage() {
   const [driverId, setDriverId] = useState('');
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [nextStatus, setNextStatus] = useState('');
+  const [force, setForce] = useState(false);
   const [reason, setReason] = useState('');
 
   const detail = order.data;
-  const nextStatuses = useMemo(() => (detail ? nextOrderStatuses(detail.status) : []), [detail]);
+  const nextStatuses = useMemo(
+    () => (detail ? (force ? ORDER_STATUSES : nextOrderStatuses(detail.status)) : []),
+    [detail, force],
+  );
+  const canForce = can('orders.force_status');
 
   async function openAssign() {
     setAssignOpen(true);
@@ -76,12 +81,17 @@ export default function OrderDetailPage() {
 
   async function doTransition() {
     if (!nextStatus) return;
+    if (force && !reason.trim()) {
+      notify(t('orders.forceReason'), 'error');
+      return;
+    }
     setBusy(true);
     try {
       await endpoints.transitionOrder(id, nextStatus, reason || undefined);
       notify(t('common.save'));
       setTransitionOpen(false);
       setNextStatus('');
+      setForce(false);
       setReason('');
       order.reload();
     } catch (err) {
@@ -288,6 +298,16 @@ export default function OrderDetailPage() {
         }
       >
         <div className="space-y-3">
+          {canForce && (
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input
+                type="checkbox"
+                checked={force}
+                onChange={(e) => { setForce(e.target.checked); setNextStatus(''); }}
+              />
+              {t('orders.forceOverride')}
+            </label>
+          )}
           <Field label={t('orders.nextStatus')} required>
             <Select value={nextStatus} onChange={(e) => setNextStatus(e.target.value)}>
               <option value="">—</option>
@@ -296,7 +316,7 @@ export default function OrderDetailPage() {
               ))}
             </Select>
           </Field>
-          <Field label={t('common.reason')}>
+          <Field label={force ? t('orders.forceReason') : t('common.reason')} required={force} hint={force ? t('orders.forceHint') : undefined}>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} />
           </Field>
         </div>

@@ -165,6 +165,7 @@ export interface PricingRule {
   id: string; name: string; description: string | null;
   zoneId: string | null; merchantId: string | null; vehicleTypeId: string | null;
   deliveryType: string | null; priority: number; currency: string; isActive: boolean;
+  validFrom?: string | null; validTo?: string | null;
   components: PricingComponent[];
   zone?: { id: string; name: string } | null;
   merchant?: { id: string; name: string } | null;
@@ -216,6 +217,33 @@ export interface Notification {
   templateCode: string | null; userId: string | null;
   customerId: string | null; driverId: string | null;
   sentAt: string | null; readAt: string | null; createdAt: string;
+}
+export interface NotificationLog {
+  id: string; notificationId: string; channel: string;
+  provider: string | null; status: string; error: string | null; createdAt: string;
+}
+export interface NotificationDetail extends Notification {
+  data: Record<string, unknown> | null;
+  logs: NotificationLog[];
+}
+export interface NotificationTemplate {
+  id: string; code: string; channel: string; subject: string | null;
+  body: string; locale: string; isActive: boolean;
+}
+
+// ---- Live Operations overview ----
+export interface LiveOverview {
+  generatedAt: string;
+  buckets: {
+    awaitingAssignment: number; assigned: number; pickedUp: number; inTransit: number;
+    delayed: number; failedDelivery: number; recentlyDelivered: number;
+  };
+  drivers: { available: number; busy: number; offline: number; suspended: number };
+  problemOrders: Array<{
+    id: string; orderNumber: string; status: OrderStatus;
+    paymentStatus: string; updatedAt: string; driverId: string | null;
+  }>;
+  staleOrderCount: number;
 }
 
 // ---- Audit ----

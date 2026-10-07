@@ -2,13 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Errors } from '../../common/errors/app-error';
 import { AuditService } from '../audit/audit.service';
-
-export interface WalletAdjustDto {
-  type: 'credit' | 'debit' | 'payout' | 'adjustment';
-  amount: number;
-  description?: string;
-  reference?: string;
-}
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { WalletAdjustDto } from './dto/wallet.dto';
 
 @Injectable()
 export class WalletsService {
@@ -17,21 +12,39 @@ export class WalletsService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(tenantId: string) {
-    return this.prisma.driverWallet.findMany({
-      where: { tenantId },
-      include: { driver: { select: { id: true, fullName: true, phone: true } } },
-      orderBy: { updatedAt: 'desc' },
-    });
+  async list(tenantId: string, q: PaginationQueryDto) {
+    const where = {
+      tenantId,
+      ...(q.search
+        ? { driver: { fullName: { contains: q.search, mode: 'insensitive' as const } } }
+        : {}),
+    };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.driverWallet.findMany({
+        where,
+        include: { driver: { select: { id: true, fullName: true, phone: true } } },
+        orderBy: { updatedAt: 'desc' },
+        skip: q.skip,
+        take: q.take,
+      }),
+      this.prisma.driverWallet.count({ where }),
+    ]);
+    return { items, total };
   }
 
-  async get(tenantId: string, driverId: string) {
-    const wallet = await this.prisma.driverWallet.findFirst({
-      where: { tenantId, driverId },
-      include: { transactions: { orderBy: { createdAt: 'desc' }, take: 50 } },
-    });
+  async get(tenantId: string, driverId: string, q?: PaginationQueryDto) {
+    const wallet = await this.prisma.driverWallet.findFirst({ where: { tenantId, driverId } });
     if (!wallet) throw Errors.notFound('wallet');
-    return wallet;
+    const [transactions, total] = await this.prisma.$transaction([
+      this.prisma.walletTransaction.findMany({
+        where: { tenantId, walletId: wallet.id },
+        orderBy: { createdAt: 'desc' },
+        skip: q?.skip ?? 0,
+        take: q?.take ?? 50,
+      }),
+      this.prisma.walletTransaction.count({ where: { tenantId, walletId: wallet.id } }),
+    ]);
+    return { ...wallet, transactions, transactionTotal: total };
   }
 
   /** Applies a wallet movement atomically and records the resulting balance. */
@@ -39,6 +52,9 @@ export class WalletsService {
     const wallet = await this.prisma.driverWallet.findFirst({ where: { tenantId, driverId } });
     if (!wallet) throw Errors.notFound('wallet');
     if (dto.amount <= 0) throw Errors.validation('Amount must be positive');
+    if (!dto.reason || !dto.reason.trim()) {
+      throw Errors.validation('A reason is required for wallet adjustments');
+    }
 
     const delta = dto.type === 'credit' || dto.type === 'adjustment' ? dto.amount : -dto.amount;
     const balanceAfter = Number(wallet.balance) + delta;
@@ -49,14 +65,14 @@ export class WalletsService {
       this.prisma.walletTransaction.create({
         data: {
           tenantId, walletId: wallet.id, type: dto.type, amount: dto.amount,
-          balanceAfter, reference: dto.reference, description: dto.description,
+          balanceAfter, reference: dto.reference, description: dto.reason,
         },
       }),
     ]);
 
     await this.audit.log({
       tenantId, userId: actor.userId, action: 'wallet.adjust', entity: 'driver_wallet', entityId: wallet.id,
-      after: { type: dto.type, amount: dto.amount, balanceAfter }, ip: actor.ip,
+      after: { type: dto.type, amount: dto.amount, balanceAfter, reason: dto.reason }, ip: actor.ip,
     });
     return updated;
   }

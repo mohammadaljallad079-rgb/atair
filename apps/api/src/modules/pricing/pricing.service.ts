@@ -2,39 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Errors } from '../../common/errors/app-error';
 import { AuditService } from '../audit/audit.service';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import {
+  CreatePricingRuleDto,
+  PricingQueryDto,
+  QuoteDto,
+  UpdatePricingRuleDto,
+} from './dto/pricing.dto';
 import {
   PriceQuote,
-  PriceQuoteInput,
   PricingComponentType,
   PricingEngine,
   PricingRuleInput,
 } from './pricing.engine';
 
-export interface UpsertPricingRuleDto {
-  name: string;
-  description?: string;
-  zoneId?: string;
-  merchantId?: string;
-  vehicleTypeId?: string;
-  deliveryType?: string;
-  priority?: number;
-  currency?: string;
-  isActive?: boolean;
-  components: Array<{
-    type: PricingComponentType;
-    amount: number;
-    minValue?: number;
-    maxValue?: number;
-    meta?: Record<string, any>;
-  }>;
-}
-
-export interface QuoteDto extends PriceQuoteInput {
-  zoneId?: string;
-  merchantId?: string;
-  vehicleTypeId?: string;
-  deliveryType?: string;
+/**
+ * Server-side quote input. Extends the client-facing DTO with fields that are
+ * resolved internally (discount, tax rate) and must never be trusted from the
+ * request body.
+ */
+export interface QuoteInput extends QuoteDto {
+  at?: Date;
+  discount?: { type: 'fixed' | 'percent'; amount: number } | null;
+  taxRatePercent?: number;
 }
 
 @Injectable()
@@ -44,9 +33,10 @@ export class PricingService {
     private readonly audit: AuditService,
   ) {}
 
-  async listRules(tenantId: string, q: PaginationQueryDto) {
+  async listRules(tenantId: string, q: PricingQueryDto) {
     const where = {
       tenantId,
+      ...(q.isActive ? { isActive: q.isActive === 'true' } : {}),
       ...(q.search ? { name: { contains: q.search, mode: 'insensitive' as const } } : {}),
     };
     const [items, total] = await this.prisma.$transaction([
@@ -62,7 +52,7 @@ export class PricingService {
     return { items, total };
   }
 
-  async createRule(tenantId: string, dto: UpsertPricingRuleDto, actor: { userId: string; ip?: string }) {
+  async createRule(tenantId: string, dto: CreatePricingRuleDto, actor: { userId: string; ip?: string }) {
     const rule = await this.prisma.pricingRule.create({
       data: {
         tenantId,
@@ -75,23 +65,25 @@ export class PricingService {
         priority: dto.priority ?? 0,
         currency: dto.currency ?? 'SAR',
         isActive: dto.isActive ?? true,
+        validFrom: dto.validFrom ? new Date(dto.validFrom) : null,
+        validTo: dto.validTo ? new Date(dto.validTo) : null,
         components: {
           create: dto.components.map((c) => ({
             type: c.type,
             amount: c.amount,
             minValue: c.minValue,
             maxValue: c.maxValue,
-            meta: c.meta,
+            meta: c.meta ?? undefined,
           })),
         },
-      },
+      } as any,
       include: { components: true },
     });
     await this.audit.log({ tenantId, userId: actor.userId, action: 'pricing_rule.create', entity: 'pricing_rule', entityId: rule.id, after: rule, ip: actor.ip });
     return rule;
   }
 
-  async updateRule(tenantId: string, id: string, dto: Partial<UpsertPricingRuleDto>, actor: { userId: string; ip?: string }) {
+  async updateRule(tenantId: string, id: string, dto: UpdatePricingRuleDto, actor: { userId: string; ip?: string }) {
     const before = await this.prisma.pricingRule.findFirst({ where: { id, tenantId }, include: { components: true } });
     if (!before) throw Errors.notFound('pricing_rule');
 
@@ -111,6 +103,8 @@ export class PricingService {
           priority: dto.priority,
           currency: dto.currency,
           isActive: dto.isActive,
+          ...(dto.validFrom !== undefined ? { validFrom: dto.validFrom ? new Date(dto.validFrom) : null } : {}),
+          ...(dto.validTo !== undefined ? { validTo: dto.validTo ? new Date(dto.validTo) : null } : {}),
           ...(dto.components
             ? {
                 components: {
@@ -119,12 +113,12 @@ export class PricingService {
                     amount: c.amount,
                     minValue: c.minValue,
                     maxValue: c.maxValue,
-                    meta: c.meta,
+                    meta: c.meta ?? undefined,
                   })),
                 },
               }
             : {}),
-        },
+        } as any,
         include: { components: true },
       });
     });
@@ -178,7 +172,7 @@ export class PricingService {
   }
 
   /** Server-side price calculation used by orders and the admin preview. */
-  async quote(tenantId: string, dto: QuoteDto): Promise<PriceQuote> {
+  async quote(tenantId: string, dto: QuoteInput): Promise<PriceQuote> {
     const rules = await this.loadApplicableRules(tenantId, dto);
     const rule = PricingEngine.selectRule(rules);
     if (!rule) {

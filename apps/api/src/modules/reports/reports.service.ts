@@ -1,11 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { ACTIVE_STATUSES } from '../orders/order-state.machine';
+import { ACTIVE_STATUSES, OrderStatus } from '../orders/order-state.machine';
 
 export interface DashboardRange {
   from: Date;
   to: Date;
 }
+
+// Orders still moving toward delivery (not yet handed to a driver).
+const AWAITING_ASSIGNMENT: OrderStatus[] = ['pending', 'confirmed', 'searching_driver'];
+// Driver has the order in hand / en route.
+const PICKED_UP_STATUSES: OrderStatus[] = ['picked_up'];
+const IN_TRANSIT_STATUSES: OrderStatus[] = ['in_transit', 'arriving'];
+// Delivered but not marked paid (COD / cash still outstanding).
+const PROBLEM_PAYMENT_STATUSES = ['pending', 'failed'];
 
 @Injectable()
 export class ReportsService {
@@ -164,6 +172,81 @@ export class ReportsService {
       availableDrivers,
       pausedDrivers,
       suspendedDrivers,
+    };
+  }
+
+  /**
+   * Live-operations overview: current workload buckets, driver availability and
+   * operational alerts (problem deliveries + stale orders). Snapshot semantics —
+   * the client polls this endpoint, so every field reflects the moment of the
+   * request. There is no WebSocket/SSE channel in this deployment.
+   */
+  async liveOverview(tenantId: string) {
+    const now = new Date();
+    const staleCutoff = new Date(now.getTime() - 45 * 60 * 1000);
+    const recentCutoff = new Date(now.getTime() - 60 * 60 * 1000);
+    const active = { in: ACTIVE_STATUSES };
+
+    const [
+      awaitingAssignment,
+      assigned,
+      pickedUp,
+      inTransit,
+      delayed,
+      failedDelivery,
+      recentlyDelivered,
+      availableDrivers,
+      busyDrivers,
+      offlineDrivers,
+      suspendedDrivers,
+      problemOrders,
+      staleOrders,
+    ] = await this.prisma.$transaction([
+      this.prisma.order.count({ where: { tenantId, status: { in: AWAITING_ASSIGNMENT } } }),
+      this.prisma.order.count({ where: { tenantId, status: 'assigned' as any } }),
+      this.prisma.order.count({ where: { tenantId, status: { in: PICKED_UP_STATUSES } } }),
+      this.prisma.order.count({ where: { tenantId, status: { in: IN_TRANSIT_STATUSES } } }),
+      this.prisma.order.count({
+        where: { tenantId, status: active, updatedAt: { lt: staleCutoff } },
+      }),
+      this.prisma.order.count({ where: { tenantId, status: 'failed_delivery' as any } }),
+      this.prisma.order.count({
+        where: { tenantId, status: 'delivered' as any, deliveredAt: { gte: recentCutoff } },
+      }),
+      this.prisma.driver.count({ where: { tenantId, status: 'online', isAvailable: true } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'busy' } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'offline' } }),
+      this.prisma.driver.count({ where: { tenantId, status: 'suspended' } }),
+      this.prisma.order.findMany({
+        where: {
+          tenantId,
+          OR: [
+            { status: 'failed_delivery' as any },
+            { status: active, updatedAt: { lt: staleCutoff } },
+            { status: 'delivered' as any, paymentStatus: { in: PROBLEM_PAYMENT_STATUSES as any } },
+          ],
+        },
+        select: { id: true, orderNumber: true, status: true, paymentStatus: true, updatedAt: true, driverId: true },
+        orderBy: { updatedAt: 'asc' },
+        take: 50,
+      }),
+      this.prisma.order.count({ where: { tenantId, status: active, updatedAt: { lt: staleCutoff } } }),
+    ]);
+
+    return {
+      generatedAt: now.toISOString(),
+      buckets: {
+        awaitingAssignment,
+        assigned,
+        pickedUp,
+        inTransit,
+        delayed,
+        failedDelivery,
+        recentlyDelivered,
+      },
+      drivers: { available: availableDrivers, busy: busyDrivers, offline: offlineDrivers, suspended: suspendedDrivers },
+      problemOrders,
+      staleOrderCount: staleOrders,
     };
   }
 

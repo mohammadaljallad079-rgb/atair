@@ -57,6 +57,12 @@ export class ReportsController {
     return this.reports.operations(user.tenantId);
   }
 
+  @Get('live-overview')
+  @RequirePermissions([PERMISSIONS.tracking_view])
+  liveOverview(@CurrentUser() user: AuthUser) {
+    return this.reports.liveOverview(user.tenantId);
+  }
+
   @Get('drivers')
   @RequirePermissions([PERMISSIONS.reports_view])
   drivers(@CurrentUser() user: AuthUser, @Query() q: DashboardQuery) {
