@@ -267,7 +267,10 @@ export const SYSTEM_ROLES: Record<string, { name: string; description: string; p
   customer: {
     name: 'Customer',
     description: 'Customer application access',
-    permissions: [P.orders_view, P.tracking_view, P.payments_view],
+    // Customer-only principals are additionally confined to /api/v1/customer/*
+    // by CustomerBoundaryGuard; these permissions only gate the read models the
+    // customer portal itself serves. Tenant-wide endpoints are never reachable.
+    permissions: [P.orders_view, P.tracking_view],
   },
 };
 

@@ -4,8 +4,9 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 
 ## Layout
 - `apps/api` — NestJS + Prisma REST API.
-- `apps/admin` — Admin Control Center: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3001**. Wordmark «عَ الطاير» is an intentional placeholder (no real logo asset exists in the repo).
+- `apps/admin` — Admin Control Center: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3001**.
 - `apps/merchant` — Merchant / Business Portal: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3002**. Consumes only `/api/v1/merchant/*` (plus `/auth/*`); a pure merchant principal is blocked from tenant-wide routes by `MerchantBoundaryGuard`.
+- `apps/customer` — Customer Application: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3003**. Consumes only `/api/v1/customer/*` (plus `/auth/*`); a pure customer principal is blocked from tenant-wide routes by `CustomerBoundaryGuard`. Same-origin by default: `next.config.mjs` rewrites `/api/:path*` to `API_PROXY_TARGET` (default `http://localhost:3000`).
 - `packages/db` — Prisma schema, migrations, seed, and shared `@atair/db` package (exports `PrismaClient` + `PERMISSIONS`).
 
 ## Commands (run from repo root)
@@ -16,9 +17,10 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Seed: `npm run db:seed` (creates platform + `atair-demo` tenants, RBAC, demo users, Riyadh zone/pricing).
 - API dev: `npm run api:dev` | Build: `npm run api:build`
 - Typecheck (both apps): `npm run typecheck` | Lint (both apps): `npm run lint`
-- API tests: `npm run api:test` | Admin tests: `npm run -w @atair/admin test` | Merchant tests: `npm run -w @atair/merchant test`
+- API tests: `npm run api:test` | Admin tests: `npm run -w @atair/admin test` | Merchant tests: `npm run -w @atair/merchant test` | Customer tests: `npm run -w @atair/customer test`
 - Admin dev: `npm run admin:dev` | Admin build: `npm run admin:build`
 - Merchant dev: `npm run merchant:dev` | Merchant build: `npm run merchant:build`
+- Customer dev: `npm run customer:dev` | Customer build: `npm run customer:build`
 
 ## Admin app (apps/admin)
 - Next.js App Router under `src/app`; shared UI in `src/components`, API client in `src/lib`.
@@ -36,10 +38,17 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - `src/middleware.ts` gates on the non-sensitive `atair.session` presence flag; the access token stays in memory, refresh token in `localStorage` (`atair.refreshToken`).
 - Charts in `src/components/charts/charts.tsx` use the brand colors `#f97316` (orange) and `#2563eb` (ink blue).
 
+## Customer app (apps/customer)
+- Same Next.js App Router structure (`src/app`, `src/components`, `src/lib`, `src/i18n`); authenticated pages live under `src/app/(app)/*` behind `(app)/layout.tsx` (sidebar + app shell).
+- API surface is `/api/v1/customer/*` only (see `src/lib/endpoints.ts`). The customer is resolved from the JWT — never sent by the client. The `customer` role carries only `orders.view` + `tracking.view`; `CustomerBoundaryGuard` blocks a customer-only principal from tenant-wide routes with `403`.
+- `src/middleware.ts` gates on the non-sensitive `atair.customer.session` presence flag (public paths `/login`, `/register`); the access token stays in memory, refresh token in `localStorage` (`atair.customer.refreshToken`).
+- Same-origin API: `next.config.mjs` rewrites `/api/:path*` to `API_PROXY_TARGET` (default `http://localhost:3000`); the browser calls the app's own origin, avoiding mixed content over HTTPS. `NEXT_PUBLIC_API_URL` overrides for a split origin.
+- Design tokens are centralized in `tailwind.config.ts` / `globals.css` (`brand` orange + `ink` blue). Branding always goes through `src/components/brand/brand-logo.tsx`.
+
 ## API conventions
 - Global prefix `/api`, URI versioning (default `v1`) → routes are `/api/v1/...`. Swagger at `/api/docs`.
 - Response envelope: success `{ success:true, data, meta? }`; errors `{ success:false, error:{ code, message, details? } }` (see `common/errors/app-error.ts`).
-- Global providers (in `app.module.ts`): ThrottlerGuard → JwtAuthGuard → PermissionsGuard; Transform + Audit interceptors; AllExceptionsFilter.
+- Global providers (in `app.module.ts`): ThrottlerGuard → JwtAuthGuard → MerchantBoundaryGuard → CustomerBoundaryGuard → PermissionsGuard; Transform + Audit interceptors; AllExceptionsFilter.
 - Tenant comes from the signed JWT (`AuthUser.tenantId`), never from client input. All queries must be tenant-scoped.
 - `@Public()` bypasses auth (login/refresh/health). `@RequirePermissions([...])` enforces RBAC; platform admins bypass.
 - DTOs use class-validator + `@nestjs/swagger`. ValidationPipe is `whitelist + forbidNonWhitelisted`, so unknown body fields are rejected.
@@ -79,6 +88,6 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
   - `logo-full.{webp,png}` — bird + Arabic wordmark, used for login/branding moments.
   - `logo-mark.{webp,png}` — bird only, used for navigation/compact marks.
   - `favicon-32.png`, `favicon.ico` (16/32/48), `icon-192.png`, `icon-512.png`, `apple-touch-icon.png` (from `icon-180.png`) — app icons/favicons derived from the bird on its light-blue background. Regenerate reproducibly with `python3 public/assets/brand/make_assets.py`; never hand-drawn.
-- All UI branding goes through the shared `BrandLogo` component (`apps/{admin,merchant}/src/components/brand/brand-logo.tsx`, variants `login | full | navigation | compact`). Do not inline the image in pages.
+- All UI branding goes through the shared `BrandLogo` component (`apps/{admin,merchant,customer}/src/components/brand/brand-logo.tsx`, variants `login | full | navigation | compact`). Do not inline the image in pages.
 - The artwork must never be mirrored in RTL: only the surrounding layout flips (`dir`), never the logo (`transform` stays `none`).
 - The route-guard middleware must keep excluding static file extensions (`png|jpg|jpeg|webp|svg|ico|gif`) so brand assets/favicons load on the public login screen.
