@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Errors } from '../../common/errors/app-error';
 import { AuditService } from '../audit/audit.service';
@@ -99,6 +100,23 @@ export class OrdersService {
     return `ATA-${stamp}-${String(count + 1).padStart(5, '0')}`;
   }
 
+  /**
+   * Opaque public tracking secret (Crockford base32, 128 bits of entropy).
+   * Non-sequential by construction, so the public tracking endpoint cannot be
+   * enumerated. Retries on the astronomically unlikely unique collision.
+   */
+  private async generateTrackingCode(): Promise<string> {
+    const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const bytes = randomBytes(26);
+      let code = '';
+      for (let i = 0; i < bytes.length; i += 1) code += alphabet[bytes[i] % 32];
+      const exists = await this.prisma.order.findUnique({ where: { trackingCode: code }, select: { id: true } });
+      if (!exists) return code;
+    }
+    throw Errors.internal('Could not allocate a tracking code');
+  }
+
   async create(tenantId: string, dto: CreateOrderDto, actor: { userId: string; ip?: string }) {
     // Validate referenced entities belong to this tenant (prevents IDOR / cross-tenant refs).
     if (dto.customerId) await this.assertBelongs('customer', tenantId, dto.customerId);
@@ -158,11 +176,13 @@ export class OrdersService {
     }
 
     const orderNumber = await this.generateOrderNumber(tenantId);
+    const trackingCode = await this.generateTrackingCode();
 
     const order = await this.prisma.order.create({
       data: {
         tenantId,
         orderNumber,
+        trackingCode,
         customerId: dto.customerId,
         merchantId: dto.merchantId,
         merchantBranchId: dto.merchantBranchId,

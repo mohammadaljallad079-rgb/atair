@@ -635,6 +635,9 @@ model Order {
   id               String  @id @default(uuid()) @db.Uuid
   tenantId         String  @map("tenant_id") @db.Uuid
   orderNumber      String  @map("order_number")
+  // Opaque, high-entropy public tracking secret. Non-sequential, so a public
+  // tracking lookup cannot enumerate other orders. Nullable for pre-existing rows.
+  trackingCode     String? @unique @map("tracking_code")
   branchId         String? @map("branch_id") @db.Uuid
   customerId       String? @map("customer_id") @db.Uuid
   merchantId       String? @map("merchant_id") @db.Uuid

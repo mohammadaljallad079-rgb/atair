@@ -34,6 +34,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { HealthModule } from './modules/health/health.module';
 import { MerchantPortalModule } from './modules/merchant-portal/merchant-portal.module';
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
+import { PublicSiteModule } from './modules/public-site/public-site.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { CustomerPortalModule } from './modules/customer-portal/customer-portal.
     HealthModule,
     MerchantPortalModule,
     CustomerPortalModule,
+    PublicSiteModule,
   ],
   providers: [
     // Order matters: throttle → authenticate → merchant boundary → authorize.
