@@ -23,6 +23,7 @@ export default function VehiclesPage() {
   const { notify } = useToast();
   const list = useResourceList<Vehicle>((query, signal) => endpoints.vehicles(query), { pageSize: 20 });
   const types = useAsync(() => endpoints.vehicleTypes(), []);
+  const allTypes = useAsync(() => endpoints.allVehicleTypes(), []);
   const drivers = useAsync(() => endpoints.drivers({ pageSize: 100 }), []);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -31,6 +32,45 @@ export default function VehiclesPage() {
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const [typeOpen, setTypeOpen] = useState(false);
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [vtName, setVtName] = useState('');
+  const [vtCapacity, setVtCapacity] = useState('');
+  const [vtMaxWeight, setVtMaxWeight] = useState('');
+  const [vtActive, setVtActive] = useState(true);
+
+  function openTypeEditor(vt?: { id: string; name: string; capacityKg: number | null; maxWeightKg: number | null; isActive: boolean }) {
+    setEditingTypeId(vt?.id ?? null);
+    setVtName(vt?.name ?? '');
+    setVtCapacity(vt?.capacityKg != null ? String(vt.capacityKg) : '');
+    setVtMaxWeight(vt?.maxWeightKg != null ? String(vt.maxWeightKg) : '');
+    setVtActive(vt?.isActive ?? true);
+    setTypeOpen(true);
+  }
+
+  async function saveType() {
+    if (!vtName.trim()) return;
+    setBusy(true);
+    try {
+      const body = {
+        name: vtName.trim(),
+        capacityKg: vtCapacity ? Number(vtCapacity) : undefined,
+        maxWeightKg: vtMaxWeight ? Number(vtMaxWeight) : undefined,
+        isActive: vtActive,
+      };
+      if (editingTypeId) await endpoints.updateVehicleType(editingTypeId, body);
+      else await endpoints.createVehicleType(body);
+      notify(t('common.save'));
+      setTypeOpen(false);
+      allTypes.reload();
+      types.reload();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const [assignTarget, setAssignTarget] = useState<VehicleDetail | null>(null);
   const [assignDriverId, setAssignDriverId] = useState('');
@@ -165,6 +205,7 @@ export default function VehiclesPage() {
         subtitle={t('vehicles.subtitle')}
         actions={
           <PermissionGate permission="vehicles.manage">
+            <Button size="sm" variant="secondary" onClick={() => openTypeEditor()}>{t('vehicleTypes.create')}</Button>
             <Button size="sm" onClick={() => setCreateOpen(true)}>{t('vehicles.create')}</Button>
           </PermissionGate>
         }
@@ -203,6 +244,63 @@ export default function VehiclesPage() {
           />
         )}
       </Card>
+
+      <Card className="mt-4" title={t('vehicleTypes.title')}>
+        {allTypes.data?.length ? (
+          <DataTable
+            columns={[
+              { key: 'name', header: t('vehicleTypes.name'), render: (vt) => <span className="font-medium text-slate-800">{vt.name}</span> },
+              { key: 'slug', header: t('common.slug'), render: (vt) => <span dir="ltr" className="text-xs text-slate-500">{vt.slug}</span> },
+              { key: 'capacityKg', header: t('vehicleTypes.capacity'), align: 'end', render: (vt) => (vt.capacityKg != null ? String(vt.capacityKg) : '—') },
+              { key: 'maxWeightKg', header: t('vehicleTypes.maxWeight'), align: 'end', render: (vt) => (vt.maxWeightKg != null ? String(vt.maxWeightKg) : '—') },
+              { key: 'isActive', header: t('common.status'), render: (vt) => <StatusBadge status={vt.isActive ? 'active' : 'inactive'} /> },
+              {
+                key: 'actions', header: t('common.actions'), align: 'end',
+                render: (vt) => (
+                  <PermissionGate permission="vehicles.manage">
+                    <Button size="sm" variant="secondary" onClick={() => openTypeEditor(vt)}>{t('common.edit')}</Button>
+                  </PermissionGate>
+                ),
+              },
+            ]}
+            rows={allTypes.data}
+            rowKey={(vt) => vt.id}
+            loading={allTypes.loading}
+            error={allTypes.error}
+            onRetry={allTypes.reload}
+          />
+        ) : <p className="text-sm text-slate-400">{t('common.empty')}</p>}
+      </Card>
+
+      <Modal
+        open={typeOpen}
+        onClose={() => setTypeOpen(false)}
+        title={editingTypeId ? t('vehicleTypes.edit') : t('vehicleTypes.create')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setTypeOpen(false)}>{t('common.cancel')}</Button>
+            <Button loading={busy} disabled={!vtName.trim()} onClick={saveType}>{t('common.save')}</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <Field label={t('vehicleTypes.name')} required>
+            <TextInput value={vtName} onChange={(e) => setVtName(e.target.value)} />
+          </Field>
+          <Field label={t('vehicleTypes.capacity')}>
+            <TextInput type="number" value={vtCapacity} onChange={(e) => setVtCapacity(e.target.value)} dir="ltr" />
+          </Field>
+          <Field label={t('vehicleTypes.maxWeight')}>
+            <TextInput type="number" value={vtMaxWeight} onChange={(e) => setVtMaxWeight(e.target.value)} dir="ltr" />
+          </Field>
+          <Field label={t('common.status')}>
+            <Select value={vtActive ? 'active' : 'inactive'} onChange={(e) => setVtActive(e.target.value === 'active')}>
+              <option value="active">{t('status.active')}</option>
+              <option value="inactive">{t('status.inactive')}</option>
+            </Select>
+          </Field>
+        </div>
+      </Modal>
 
       <Modal
         open={createOpen}

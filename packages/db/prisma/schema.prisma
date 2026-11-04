@@ -79,6 +79,7 @@ model User {
   branchId            String?    @map("branch_id") @db.Uuid
   email               String?
   phone               String?
+  username            String?
   passwordHash        String     @map("password_hash")
   fullName            String     @map("full_name")
   avatarUrl           String?    @map("avatar_url")
@@ -100,9 +101,11 @@ model User {
   merchantLinks      MerchantUser[]
   activityLogs       ActivityLog[]
   createdAssignments OrderAssignment[] @relation("assigned_by")
+  driverAccount      Driver?           @relation("driver_account")
 
   @@unique([tenantId, email])
   @@unique([tenantId, phone])
+  @@unique([tenantId, username])
   @@index([tenantId, status])
   @@map("users")
 }
@@ -208,18 +211,18 @@ model SystemSetting {
 // ============================================================
 
 model Customer {
-  id        String         @id @default(uuid()) @db.Uuid
-  tenantId  String         @map("tenant_id") @db.Uuid
-  userId    String?        @map("user_id") @db.Uuid
-  merchantId String?       @map("merchant_id") @db.Uuid
-  fullName  String         @map("full_name")
-  phone     String
-  email     String?
-  status    CustomerStatus @default(active)
-  rating    Float?
-  notes     String?
-  createdAt DateTime       @default(now()) @map("created_at")
-  updatedAt DateTime       @updatedAt @map("updated_at")
+  id         String         @id @default(uuid()) @db.Uuid
+  tenantId   String         @map("tenant_id") @db.Uuid
+  userId     String?        @map("user_id") @db.Uuid
+  merchantId String?        @map("merchant_id") @db.Uuid
+  fullName   String         @map("full_name")
+  phone      String
+  email      String?
+  status     CustomerStatus @default(active)
+  rating     Float?
+  notes      String?
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
 
   tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   merchant    Merchant?            @relation(fields: [merchantId], references: [id], onDelete: SetNull)
@@ -281,18 +284,28 @@ model Driver {
   email              String?
   status             DriverStatus             @default(offline)
   verificationStatus DriverVerificationStatus @default(pending) @map("verification_status")
+  approvalStatus     ApprovalStatus           @default(pending) @map("approval_status")
+  rejectionReason    String?                  @map("rejection_reason")
+  reviewedAt         DateTime?                @map("reviewed_at")
+  reviewedByUserId   String?                  @map("reviewed_by_user_id") @db.Uuid
+  approvedAt         DateTime?                @map("approved_at")
+  source             RegistrationSource       @default(admin)
   isAvailable        Boolean                  @default(false) @map("is_available")
   rating             Float?                   @default(0)
   completedOrders    Int                      @default(0) @map("completed_orders")
   cancelledOrders    Int                      @default(0) @map("cancelled_orders")
   totalEarnings      Decimal                  @default(0) @map("total_earnings") @db.Decimal(14, 2)
   nationalId         String?                  @map("national_id")
+  nationalIdExpiry   DateTime?                @map("national_id_expiry")
+  licenseNumber      String?                  @map("license_number")
+  licenseExpiry      DateTime?                @map("license_expiry")
   suspendedReason    String?                  @map("suspended_reason")
   lastLocationAt     DateTime?                @map("last_location_at")
   createdAt          DateTime                 @default(now()) @map("created_at")
   updatedAt          DateTime                 @updatedAt @map("updated_at")
 
   tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User?             @relation("driver_account", fields: [userId], references: [id], onDelete: SetNull)
   documents   DriverDocument[]
   vehicles    DriverVehicle[]
   locations   DriverLocation[]
@@ -303,8 +316,10 @@ model Driver {
   settlements Settlement[]
 
   @@unique([tenantId, phone])
+  @@unique([userId])
   @@index([tenantId, status])
   @@index([tenantId, verificationStatus])
+  @@index([tenantId, approvalStatus])
   @@map("drivers")
 }
 
@@ -442,22 +457,35 @@ model VehicleDocument {
 // ============================================================
 
 model Merchant {
-  id             String         @id @default(uuid()) @db.Uuid
-  tenantId       String         @map("tenant_id") @db.Uuid
-  name           String
-  slug           String
-  category       String?
-  phone          String?
-  email          String?
-  status         MerchantStatus @default(active)
-  commissionRate Decimal?       @map("commission_rate") @db.Decimal(6, 4)
-  settings       Json?
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  id               String             @id @default(uuid()) @db.Uuid
+  tenantId         String             @map("tenant_id") @db.Uuid
+  name             String
+  slug             String
+  category         String?
+  phone            String?
+  email            String?
+  ownerName        String?            @map("owner_name")
+  commercialReg    String?            @map("commercial_reg")
+  vatNumber        String?            @map("vat_number")
+  address          String?
+  latitude         Float?
+  longitude        Float?
+  status           MerchantStatus     @default(active)
+  approvalStatus   ApprovalStatus     @default(pending) @map("approval_status")
+  rejectionReason  String?            @map("rejection_reason")
+  reviewedAt       DateTime?          @map("reviewed_at")
+  reviewedByUserId String?            @map("reviewed_by_user_id") @db.Uuid
+  approvedAt       DateTime?          @map("approved_at")
+  source           RegistrationSource @default(admin)
+  commissionRate   Decimal?           @map("commission_rate") @db.Decimal(6, 4)
+  settings         Json?
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
 
-  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branches     MerchantBranch[]
   users        MerchantUser[]
+  documents    MerchantDocument[]
   orders       Order[]
   pricingRules PricingRule[]
   settlements  MerchantSettlement[]
@@ -465,7 +493,30 @@ model Merchant {
 
   @@unique([tenantId, slug])
   @@index([tenantId, status])
+  @@index([tenantId, approvalStatus])
   @@map("merchants")
+}
+
+model MerchantDocument {
+  id           String         @id @default(uuid()) @db.Uuid
+  tenantId     String         @map("tenant_id") @db.Uuid
+  merchantId   String         @map("merchant_id") @db.Uuid
+  type         DocumentType
+  fileUrl      String         @map("file_url")
+  fileKey      String?        @map("file_key")
+  number       String?
+  expiresAt    DateTime?      @map("expires_at")
+  status       DocumentStatus @default(pending)
+  reviewedBy   String?        @map("reviewed_by") @db.Uuid
+  reviewedAt   DateTime?      @map("reviewed_at")
+  rejectReason String?        @map("reject_reason")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, merchantId])
+  @@map("merchant_documents")
 }
 
 model MerchantBranch {
@@ -481,7 +532,7 @@ model MerchantBranch {
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
 
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant       @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   orders   Order[]
   users    MerchantUser[]
 
@@ -674,10 +725,10 @@ model Order {
 
   // Cash-on-delivery: the merchandise amount the driver collects from the
   // recipient. This is deliberately separate from `total` (the delivery fee).
-  codAmount      Decimal    @default(0) @map("cod_amount") @db.Decimal(14, 2)
-  codStatus      CodStatus  @default(none) @map("cod_status")
-  codCollectedAt DateTime?  @map("cod_collected_at")
-  codSettledAt   DateTime?  @map("cod_settled_at")
+  codAmount      Decimal   @default(0) @map("cod_amount") @db.Decimal(14, 2)
+  codStatus      CodStatus @default(none) @map("cod_status")
+  codCollectedAt DateTime? @map("cod_collected_at")
+  codSettledAt   DateTime? @map("cod_settled_at")
 
   notes              String?
   cancellationReason String?   @map("cancellation_reason")
@@ -1216,6 +1267,21 @@ enum DriverVerificationStatus {
   verified
   rejected
   expired
+}
+
+// Account approval lifecycle for drivers and merchants (admin-gated).
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+  suspended
+}
+
+// Where a driver/merchant record originated.
+enum RegistrationSource {
+  admin
+  website
+  app
 }
 
 enum DocumentType {

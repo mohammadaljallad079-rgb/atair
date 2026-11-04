@@ -1,8 +1,9 @@
 import { Body, Controller, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, PartialType } from '@nestjs/swagger';
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { ApiBearerAuth, ApiOperation, ApiTags, PartialType } from '@nestjs/swagger';
+import { IsBoolean, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
 import { PERMISSIONS } from '@atair/db';
-import { CreateVehicleDto, VehicleQueryDto, VehiclesService } from './vehicles.service';
+import { CreateVehicleDto, CreateVehicleTypeDto, UpdateVehicleTypeDto, VehicleQueryDto, VehiclesService } from './vehicles.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationQueryDto, paginated } from '../../common/dto/pagination.dto';
@@ -30,6 +31,17 @@ class AssignVehicleDriverBody {
   @IsUUID() driverId!: string;
 }
 
+class CreateVehicleTypeBody implements CreateVehicleTypeDto {
+  @IsString() @IsNotEmpty() name!: string;
+  @IsOptional() @IsString() slug?: string;
+  @IsOptional() @Type(() => Number) @IsNumber() capacityKg?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() maxWeightKg?: number;
+  @IsOptional() @IsString() icon?: string;
+  @IsOptional() @IsBoolean() isActive?: boolean;
+}
+
+class UpdateVehicleTypeBody extends PartialType(CreateVehicleTypeBody) implements UpdateVehicleTypeDto {}
+
 @ApiTags('vehicles')
 @ApiBearerAuth()
 @Controller('vehicles')
@@ -40,6 +52,25 @@ export class VehiclesController {
   @RequirePermissions([PERMISSIONS.vehicles_view])
   types() {
     return this.vehicles.listTypes();
+  }
+
+  @Get('types/all')
+  @RequirePermissions([PERMISSIONS.vehicles_view])
+  @ApiOperation({ summary: 'All vehicle types (active + inactive) for management' })
+  allTypes(@CurrentUser() user: AuthUser) {
+    return this.vehicles.listAllTypes(user.tenantId);
+  }
+
+  @Post('types')
+  @RequirePermissions([PERMISSIONS.vehicles_manage])
+  createType(@CurrentUser() user: AuthUser, @Body() dto: CreateVehicleTypeBody, @Ip() ip: string) {
+    return this.vehicles.createType(user.tenantId, dto, { userId: user.userId, ip });
+  }
+
+  @Patch('types/:id')
+  @RequirePermissions([PERMISSIONS.vehicles_manage])
+  updateType(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateVehicleTypeBody, @Ip() ip: string) {
+    return this.vehicles.updateType(user.tenantId, id, dto, { userId: user.userId, ip });
   }
 
   @Get()

@@ -35,6 +35,25 @@ export interface SendNotificationDto {
   data?: Record<string, any>;
 }
 
+/**
+ * Fallback bodies for the platform's built-in templates. Used only when a
+ * tenant has not configured the template itself, so an important operational
+ * notification (an order offer, an assignment) is never silently dropped.
+ */
+const DEFAULT_TEMPLATES: Record<string, { subject: string; body: string }> = {
+  'order.created': { subject: 'تم إنشاء الطلب', body: 'تم استلام طلبك رقم {{orderNumber}}' },
+  'order.assigned': { subject: 'تم تعيين سائق', body: 'السائق {{driverName}} في الطريق إليك' },
+  'order.delivered': { subject: 'تم التسليم', body: 'تم تسليم الطلب {{orderNumber}} بنجاح' },
+  'driver.order_offered': {
+    subject: 'طلب جديد متاح',
+    body: 'طلب جديد رقم {{orderNumber}} على بعد {{distanceKm}} كم — بانتظار قبولك',
+  },
+  'driver.registration_received': {
+    subject: 'تم استلام طلب التسجيل',
+    body: 'تم استلام طلب انضمامك وسيتم مراجعته من قبل الإدارة',
+  },
+};
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger('NotificationsService');
@@ -46,9 +65,17 @@ export class NotificationsService {
 
   /** Emits a notification for a template code, queuing it for each channel. */
   async emit(tenantId: string, templateCode: string, input: EmitInput) {
-    const templates = await this.prisma.notificationTemplate.findMany({
+    let templates = await this.prisma.notificationTemplate.findMany({
       where: { OR: [{ tenantId }, { tenantId: null }], code: templateCode, isActive: true },
     });
+    // Fall back to the built-in body so a critical operational notification is
+    // never dropped when the tenant has not customised the template.
+    if (templates.length === 0 && DEFAULT_TEMPLATES[templateCode]) {
+      const fallback = DEFAULT_TEMPLATES[templateCode];
+      templates = [
+        { channel: 'in_app', subject: fallback.subject, body: fallback.body } as (typeof templates)[number],
+      ];
+    }
     if (templates.length === 0) return { queued: 0 };
 
     let queued = 0;

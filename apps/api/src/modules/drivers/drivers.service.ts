@@ -2,19 +2,28 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Errors } from '../../common/errors/app-error';
 import { AuditService } from '../audit/audit.service';
+import { AccountsService } from '../accounts/accounts.service';
 import {
   CreateDriverDto,
+  DriverDocumentInputDto,
   DriverQueryDto,
+  RejectDriverDto,
   ReviewDocumentDto,
   UpdateDriverDto,
   UpdateDriverLocationDto,
 } from './dto/driver.dto';
+
+export interface DriverActor {
+  userId: string;
+  ip?: string;
+}
 
 @Injectable()
 export class DriversService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly accounts: AccountsService,
   ) {}
 
   async list(tenantId: string, q: DriverQueryDto) {
@@ -22,11 +31,13 @@ export class DriversService {
       tenantId,
       ...(q.status ? { status: q.status as any } : {}),
       ...(q.verificationStatus ? { verificationStatus: q.verificationStatus as any } : {}),
+      ...(q.approvalStatus ? { approvalStatus: q.approvalStatus as any } : {}),
       ...(q.search
         ? {
             OR: [
               { fullName: { contains: q.search, mode: 'insensitive' as const } },
               { phone: { contains: q.search } },
+              { email: { contains: q.search, mode: 'insensitive' as const } },
             ],
           }
         : {}),
@@ -45,6 +56,7 @@ export class DriversService {
         documents: true,
         vehicles: { include: { vehicle: true } },
         wallet: true,
+        user: { select: { id: true, email: true, username: true, status: true } },
       },
     });
     if (!driver) throw Errors.notFound('driver');
@@ -60,29 +72,184 @@ export class DriversService {
     return { ...driver, activeAssignment };
   }
 
-  async create(tenantId: string, dto: CreateDriverDto, actor: { userId: string; ip?: string }) {
+  /**
+   * Creates a driver, optionally with a login account, an initial vehicle and
+   * identity/licence documents — all in one transaction so a partial
+   * registration can never be persisted. Duplicate phone/national-id/account
+   * are rejected up front.
+   */
+  async create(
+    tenantId: string,
+    dto: CreateDriverDto,
+    actor: DriverActor,
+    opts: { source?: 'admin' | 'website' | 'app'; approvalStatus?: 'pending' | 'approved' } = {},
+  ) {
     const existing = await this.prisma.driver.findFirst({ where: { tenantId, phone: dto.phone } });
     if (existing) throw Errors.conflict('DRIVER_EXISTS', 'A driver with this phone already exists');
-    const driver = await this.prisma.driver.create({
-      data: { tenantId, fullName: dto.fullName, phone: dto.phone, email: dto.email?.toLowerCase(), nationalId: dto.nationalId },
+    if (dto.nationalId) {
+      const dupId = await this.prisma.driver.findFirst({ where: { tenantId, nationalId: dto.nationalId } });
+      if (dupId) throw Errors.conflict('DRIVER_EXISTS', 'A driver with this national ID already exists');
+    }
+
+    const approvalStatus = opts.approvalStatus ?? dto.approvalStatus ?? 'pending';
+    const source = opts.source ?? 'admin';
+
+    return this.prisma.$transaction(async (tx) => {
+      let userId: string | undefined;
+      if (dto.account?.password) {
+        const account = await this.accounts.provision({
+          tenantId,
+          fullName: dto.fullName,
+          email: dto.account.email ?? dto.email,
+          phone: dto.phone,
+          username: dto.account.username,
+          password: dto.account.password,
+          roleSlug: 'driver',
+          status: approvalStatus === 'approved' ? 'active' : 'invited',
+          tx,
+        });
+        userId = account.id;
+      }
+
+      const driver = await tx.driver.create({
+        data: {
+          tenantId,
+          userId,
+          fullName: dto.fullName,
+          phone: dto.phone,
+          email: dto.email?.toLowerCase(),
+          nationalId: dto.nationalId,
+          nationalIdExpiry: dto.nationalIdExpiry ? new Date(dto.nationalIdExpiry) : null,
+          licenseNumber: dto.licenseNumber,
+          licenseExpiry: dto.licenseExpiry ? new Date(dto.licenseExpiry) : null,
+          approvalStatus,
+          approvedAt: approvalStatus === 'approved' ? new Date() : null,
+          source,
+        },
+      });
+
+      await tx.driverWallet.create({ data: { tenantId, driverId: driver.id } });
+
+      if (dto.documents?.length) {
+        await tx.driverDocument.createMany({
+          data: dto.documents.map((doc) => this.toDocumentRow(tenantId, driver.id, doc)),
+        });
+      }
+
+      if (dto.vehiclePlate) {
+        const vehicle = await tx.vehicle.create({
+          data: {
+            tenantId,
+            plateNumber: dto.vehiclePlate,
+            vehicleTypeId: dto.vehicleTypeId ?? null,
+            make: dto.vehicleMake,
+            model: dto.vehicleModel,
+          },
+        });
+        await tx.driverVehicle.create({ data: { driverId: driver.id, vehicleId: vehicle.id, isActive: true } });
+      }
+
+      await this.audit.log({
+        tenantId, userId: actor.userId, action: 'driver.create', entity: 'driver', entityId: driver.id,
+        after: { ...driver, hasAccount: Boolean(userId), source }, ip: actor.ip,
+      });
+      return driver;
     });
-    await this.prisma.driverWallet.create({ data: { tenantId, driverId: driver.id } });
-    await this.audit.log({
-      tenantId, userId: actor.userId, action: 'driver.create', entity: 'driver', entityId: driver.id, after: driver, ip: actor.ip,
-    });
-    return driver;
   }
 
-  async update(tenantId: string, id: string, dto: UpdateDriverDto, actor: { userId: string; ip?: string }) {
+  private toDocumentRow(tenantId: string, driverId: string, doc: DriverDocumentInputDto) {
+    return {
+      tenantId,
+      driverId,
+      type: doc.type as any,
+      fileUrl: doc.fileUrl,
+      fileKey: doc.fileKey,
+      number: doc.number,
+      expiresAt: doc.expiresAt ? new Date(doc.expiresAt) : null,
+    };
+  }
+
+  async update(tenantId: string, id: string, dto: UpdateDriverDto, actor: DriverActor) {
     const before = await this.get(tenantId, id);
+    // Explicit field pick — never spread the request body into Prisma.
     const driver = await this.prisma.driver.update({
       where: { id: before.id },
-      data: { ...dto, email: dto.email?.toLowerCase() },
+      data: {
+        fullName: dto.fullName,
+        phone: dto.phone,
+        email: dto.email?.toLowerCase(),
+        nationalId: dto.nationalId,
+        nationalIdExpiry: dto.nationalIdExpiry ? new Date(dto.nationalIdExpiry) : undefined,
+        licenseNumber: dto.licenseNumber,
+        licenseExpiry: dto.licenseExpiry ? new Date(dto.licenseExpiry) : undefined,
+        status: dto.status as any,
+        verificationStatus: dto.verificationStatus as any,
+        isAvailable: dto.isAvailable,
+      },
     });
     await this.audit.log({
       tenantId, userId: actor.userId, action: 'driver.update', entity: 'driver', entityId: id, before, after: driver, ip: actor.ip,
     });
     return driver;
+  }
+
+  /** Approves a pending driver: flips approval + verification and activates the login. */
+  async approve(tenantId: string, id: string, actor: DriverActor) {
+    const driver = await this.prisma.driver.findFirst({ where: { id, tenantId } });
+    if (!driver) throw Errors.notFound('driver');
+    if (driver.approvalStatus === 'approved') {
+      throw Errors.conflict('DRIVER_ALREADY_APPROVED', 'Driver is already approved');
+    }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.driver.update({
+        where: { id },
+        data: {
+          approvalStatus: 'approved',
+          verificationStatus: 'verified',
+          approvedAt: new Date(),
+          reviewedAt: new Date(),
+          reviewedByUserId: actor.userId,
+          rejectionReason: null,
+        },
+      });
+      if (driver.userId) {
+        await tx.user.update({ where: { id: driver.userId }, data: { status: 'active' } });
+      }
+      return result;
+    });
+    await this.audit.log({
+      tenantId, userId: actor.userId, action: 'driver.approve', entity: 'driver', entityId: id,
+      before: { approvalStatus: driver.approvalStatus }, after: { approvalStatus: 'approved' }, ip: actor.ip,
+    });
+    return updated;
+  }
+
+  /** Rejects a pending driver with an optional reason; login stays blocked. */
+  async reject(tenantId: string, id: string, dto: RejectDriverDto, actor: DriverActor) {
+    const driver = await this.prisma.driver.findFirst({ where: { id, tenantId } });
+    if (!driver) throw Errors.notFound('driver');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.driver.update({
+        where: { id },
+        data: {
+          approvalStatus: 'rejected',
+          verificationStatus: 'rejected',
+          reviewedAt: new Date(),
+          reviewedByUserId: actor.userId,
+          rejectionReason: dto.reason ?? null,
+        },
+      });
+      if (driver.userId) {
+        await tx.user.update({ where: { id: driver.userId }, data: { status: 'suspended' } });
+        await tx.session.updateMany({ where: { userId: driver.userId, revokedAt: null }, data: { revokedAt: new Date() } });
+      }
+      return result;
+    });
+    await this.audit.log({
+      tenantId, userId: actor.userId, action: 'driver.reject', entity: 'driver', entityId: id,
+      before: { approvalStatus: driver.approvalStatus }, after: { approvalStatus: 'rejected', reason: dto.reason }, ip: actor.ip,
+    });
+    return updated;
   }
 
   /** Changing driver status is validated server-side and always logged. */
@@ -91,7 +258,7 @@ export class DriversService {
     id: string,
     status: 'offline' | 'online' | 'busy' | 'paused' | 'suspended',
     reason: string | undefined,
-    actor: { userId: string; ip?: string },
+    actor: DriverActor,
   ) {
     const driver = await this.get(tenantId, id);
     if (driver.status === 'suspended' && status !== 'suspended') {
@@ -111,8 +278,29 @@ export class DriversService {
     return updated;
   }
 
-  async suspend(tenantId: string, id: string, reason: string | undefined, actor: { userId: string; ip?: string }) {
-    return this.setStatus(tenantId, id, 'suspended', reason, actor);
+  async suspend(tenantId: string, id: string, reason: string | undefined, actor: DriverActor) {
+    const driver = await this.prisma.driver.findFirst({ where: { id, tenantId } });
+    if (!driver) throw Errors.notFound('driver');
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const result = await tx.driver.update({
+        where: { id },
+        data: {
+          status: 'suspended',
+          isAvailable: false,
+          suspendedReason: reason ?? null,
+          approvalStatus: driver.approvalStatus === 'approved' ? 'suspended' : driver.approvalStatus,
+        },
+      });
+      await tx.driverStatusLog.create({
+        data: { tenantId, driverId: id, fromStatus: driver.status, toStatus: 'suspended', reason },
+      });
+      return result;
+    });
+    await this.audit.log({
+      tenantId, userId: actor.userId, action: 'driver.suspend', entity: 'driver', entityId: id,
+      before: { status: driver.status }, after: { status: 'suspended', reason }, ip: actor.ip,
+    });
+    return updated;
   }
 
   /**
@@ -120,7 +308,7 @@ export class DriversService {
    * reversible operational action (never a hard delete); reactivation is
    * audited like any other status change.
    */
-  async unsuspend(tenantId: string, id: string, actor: { userId: string; ip?: string }) {
+  async unsuspend(tenantId: string, id: string, actor: DriverActor) {
     const driver = await this.prisma.driver.findFirst({ where: { id, tenantId } });
     if (!driver) throw Errors.notFound('driver');
     if (driver.status !== 'suspended') {
@@ -128,7 +316,12 @@ export class DriversService {
     }
     const updated = await this.prisma.driver.update({
       where: { id },
-      data: { status: 'offline', isAvailable: false, suspendedReason: null },
+      data: {
+        status: 'offline',
+        isAvailable: false,
+        suspendedReason: null,
+        approvalStatus: driver.approvalStatus === 'suspended' ? 'approved' : driver.approvalStatus,
+      },
     });
     await this.prisma.driverStatusLog.create({
       data: { tenantId, driverId: id, fromStatus: 'suspended', toStatus: 'offline', reason: 'unsuspended' },
@@ -141,11 +334,14 @@ export class DriversService {
   }
 
   /** Toggles a driver's availability independently of their online status. */
-  async setAvailability(tenantId: string, id: string, isAvailable: boolean, actor: { userId: string; ip?: string }) {
+  async setAvailability(tenantId: string, id: string, isAvailable: boolean, actor: DriverActor) {
     const driver = await this.prisma.driver.findFirst({ where: { id, tenantId } });
     if (!driver) throw Errors.notFound('driver');
     if (driver.status === 'suspended' && isAvailable) {
       throw Errors.conflict('DRIVER_SUSPENDED', 'A suspended driver cannot be made available');
+    }
+    if (driver.approvalStatus !== 'approved' && isAvailable) {
+      throw Errors.conflict('DRIVER_NOT_APPROVED', 'An unapproved driver cannot be made available');
     }
     const updated = await this.prisma.driver.update({ where: { id }, data: { isAvailable } });
     await this.audit.log({
@@ -175,7 +371,6 @@ export class DriversService {
   }
 
   async latestLocations(tenantId: string) {
-    // Latest ping per driver using a distinct-on style query.
     const drivers = await this.prisma.driver.findMany({
       where: { tenantId, status: { in: ['online', 'busy'] } },
       select: {
@@ -200,7 +395,7 @@ export class DriversService {
     driverId: string,
     documentId: string,
     dto: ReviewDocumentDto,
-    actor: { userId: string; ip?: string },
+    actor: DriverActor,
   ) {
     const doc = await this.prisma.driverDocument.findFirst({ where: { id: documentId, driverId, tenantId } });
     if (!doc) throw Errors.notFound('driver_document');
@@ -215,7 +410,7 @@ export class DriversService {
     return updated;
   }
 
-  async assignVehicle(tenantId: string, driverId: string, vehicleId: string, actor: { userId: string; ip?: string }) {
+  async assignVehicle(tenantId: string, driverId: string, vehicleId: string, actor: DriverActor) {
     await this.get(tenantId, driverId);
     const vehicle = await this.prisma.vehicle.findFirst({ where: { id: vehicleId, tenantId } });
     if (!vehicle) throw Errors.notFound('vehicle');
@@ -231,7 +426,7 @@ export class DriversService {
     return link;
   }
 
-  async unassignVehicle(tenantId: string, driverId: string, vehicleId: string, actor: { userId: string; ip?: string }) {
+  async unassignVehicle(tenantId: string, driverId: string, vehicleId: string, actor: DriverActor) {
     await this.get(tenantId, driverId);
     const link = await this.prisma.driverVehicle.findFirst({ where: { driverId, vehicleId } });
     if (!link) throw Errors.notFound('driver_vehicle');

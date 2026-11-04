@@ -205,6 +205,8 @@ async function main() {
     { code: 'order.created', channel: 'in_app', subject: 'تم إنشاء الطلب', body: 'تم استلام طلبك رقم {{orderNumber}}' },
     { code: 'order.assigned', channel: 'in_app', subject: 'تم تعيين سائق', body: 'السائق {{driverName}} في الطريق إليك' },
     { code: 'order.delivered', channel: 'in_app', subject: 'تم التسليم', body: 'تم تسليم الطلب {{orderNumber}} بنجاح' },
+    { code: 'driver.order_offered', channel: 'in_app', subject: 'طلب جديد متاح', body: 'طلب جديد رقم {{orderNumber}} على بعد {{distanceKm}} كم — بانتظار قبولك' },
+    { code: 'driver.registration_received', channel: 'in_app', subject: 'تم استلام طلب التسجيل', body: 'تم استلام طلب انضمامك وسيتم مراجعته من قبل الإدارة' },
   ];
   for (const t of templates) {
     await prisma.notificationTemplate.upsert({

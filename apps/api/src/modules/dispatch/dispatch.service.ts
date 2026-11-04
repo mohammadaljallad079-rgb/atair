@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { haversineKm } from '../../common/utils/geo';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export interface DispatchCandidate {
   driverId: string;
@@ -27,7 +28,10 @@ export class DispatchService {
   private readonly weights: DispatchWeights = { distance: 0.6, rating: 0.25, load: 0.15 };
   private readonly offerTtlSeconds = 60;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   /**
    * Entry point invoked when an order is created. Records a dispatch run and
@@ -63,7 +67,7 @@ export class DispatchService {
       order.vehicleTypeId,
     );
 
-    // Persist offers for the top candidates.
+    // Persist offers for the top candidates and notify each offered driver.
     for (const c of candidates.slice(0, 5)) {
       await this.prisma.orderAssignment.create({
         data: {
@@ -76,6 +80,12 @@ export class DispatchService {
           score: c.score,
           expiresAt: new Date(Date.now() + this.offerTtlSeconds * 1000),
         },
+      });
+      await this.notifications.emit(tenantId, 'driver.order_offered', {
+        orderId,
+        orderNumber: order.orderNumber,
+        driverId: c.driverId,
+        data: { orderNumber: order.orderNumber, distanceKm: c.distanceKm.toFixed(1) },
       });
     }
 
@@ -98,6 +108,7 @@ export class DispatchService {
         status: 'online',
         isAvailable: true,
         verificationStatus: 'verified',
+        approvalStatus: 'approved',
       },
       include: {
         locations: { orderBy: { recordedAt: 'desc' }, take: 1 },

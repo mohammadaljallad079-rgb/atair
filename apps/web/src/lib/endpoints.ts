@@ -55,6 +55,20 @@ export interface ContactResponse {
   ticketId: string;
 }
 
+export interface RegistrationResponse {
+  received: boolean;
+  status: 'pending_approval';
+  message: string;
+}
+
+export interface RegistrationDocument {
+  type: 'national_id' | 'license' | 'vehicle_registration' | 'insurance' | 'profile_photo' | 'other';
+  fileUrl: string;
+  fileKey?: string;
+  number?: string;
+  expiresAt?: string;
+}
+
 /** The only backend paths the public website is allowed to call. */
 export const endpoints = {
   site: (tenant?: string, signal?: AbortSignal) =>
@@ -63,4 +77,8 @@ export const endpoints = {
     publicApi.get<TrackingSnapshot>(`/public/track/${encodeURIComponent(code)}`, undefined, signal),
   contact: (body: unknown, tenant?: string) =>
     publicApi.post<ContactResponse>('/public/contact', body, tenant ? { tenant } : undefined),
+  registerDriver: (body: unknown, tenant?: string) =>
+    publicApi.post<RegistrationResponse>('/public/register/driver', body, tenant ? { tenant } : undefined),
+  registerMerchant: (body: unknown, tenant?: string) =>
+    publicApi.post<RegistrationResponse>('/public/register/merchant', body, tenant ? { tenant } : undefined),
 };

@@ -1,8 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { useI18n } from '@/i18n/provider';
 import { Section, Card, CheckItem } from '@/components/ui/primitives';
+import { RegistrationForm } from '@/components/forms/registration-form';
 
 export default function DriversPage() {
   const { t } = useI18n();
@@ -17,21 +17,21 @@ export default function DriversPage() {
       </section>
 
       <Section>
-        <Card className="mx-auto max-w-2xl">
-          <p className="text-sm leading-relaxed text-slate-600">{t('drivers.body')}</p>
-          <ul className="mt-4 space-y-3">
-            <CheckItem>{t('about.value.reliabilityBody')}</CheckItem>
-            <CheckItem>{t('services.fleet.body')}</CheckItem>
-            <CheckItem>{t('home.feature.payments.body')}</CheckItem>
-          </ul>
-          <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{t('drivers.note')}</p>
-          <Link
-            href="/contact"
-            className="mt-5 inline-flex rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700"
-          >
-            {t('drivers.cta')}
-          </Link>
-        </Card>
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card>
+            <p className="text-sm leading-relaxed text-slate-600">{t('drivers.body')}</p>
+            <ul className="mt-4 space-y-3">
+              <CheckItem>{t('about.value.reliabilityBody')}</CheckItem>
+              <CheckItem>{t('services.fleet.body')}</CheckItem>
+              <CheckItem>{t('home.feature.payments.body')}</CheckItem>
+            </ul>
+            <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{t('drivers.note')}</p>
+          </Card>
+          <div>
+            <h2 className="mb-4 text-lg font-bold text-slate-900">{t('register.driverTitle')}</h2>
+            <RegistrationForm kind="driver" />
+          </div>
+        </div>
       </Section>
     </>
   );

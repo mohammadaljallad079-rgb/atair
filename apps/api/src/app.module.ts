@@ -12,8 +12,10 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { MerchantBoundaryGuard } from './common/guards/merchant-boundary.guard';
 import { CustomerBoundaryGuard } from './common/guards/customer-boundary.guard';
+import { DriverBoundaryGuard } from './common/guards/driver-boundary.guard';
 
 import { AuthModule } from './modules/auth/auth.module';
+import { AccountsModule } from './modules/accounts/accounts.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { UsersModule } from './modules/users/users.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -34,6 +36,7 @@ import { SettingsModule } from './modules/settings/settings.module';
 import { HealthModule } from './modules/health/health.module';
 import { MerchantPortalModule } from './modules/merchant-portal/merchant-portal.module';
 import { CustomerPortalModule } from './modules/customer-portal/customer-portal.module';
+import { DriverPortalModule } from './modules/driver-portal/driver-portal.module';
 import { PublicSiteModule } from './modules/public-site/public-site.module';
 
 @Module({
@@ -43,6 +46,7 @@ import { PublicSiteModule } from './modules/public-site/public-site.module';
     PrismaModule,
 
     // Domain modules
+    AccountsModule,
     AuthModule,
     AuditModule,
     UsersModule,
@@ -64,6 +68,7 @@ import { PublicSiteModule } from './modules/public-site/public-site.module';
     HealthModule,
     MerchantPortalModule,
     CustomerPortalModule,
+    DriverPortalModule,
     PublicSiteModule,
   ],
   providers: [
@@ -72,6 +77,7 @@ import { PublicSiteModule } from './modules/public-site/public-site.module';
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: MerchantBoundaryGuard },
     { provide: APP_GUARD, useClass: CustomerBoundaryGuard },
+    { provide: APP_GUARD, useClass: DriverBoundaryGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },

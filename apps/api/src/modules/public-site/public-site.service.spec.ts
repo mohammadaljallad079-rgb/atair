@@ -16,7 +16,9 @@ describe('PublicSiteService.track', () => {
     };
     const settings: any = {};
     const audit: any = { log: jest.fn() };
-    return new PublicSiteService(prisma, settings, audit);
+    const drivers: any = {};
+    const merchants: any = {};
+    return new PublicSiteService(prisma, settings, audit, drivers, merchants);
   }
 
   it('returns a PII-free snapshot for a valid tracking code', async () => {
@@ -69,5 +71,62 @@ describe('PublicSiteService.track', () => {
     const snap = await service.track('abc123');
     expect(snap.driverLocation).toBeNull();
     expect(snap.milestone).toBe('searching');
+  });
+});
+
+/**
+ * Public self-registration must always create *pending* accounts (never active)
+ * and route them through the same service the admin console uses.
+ */
+describe('PublicSiteService registration', () => {
+  function build(tenant: unknown) {
+    const prisma: any = {
+      tenant: { findFirst: jest.fn().mockResolvedValue(tenant), findMany: jest.fn().mockResolvedValue(tenant ? [tenant] : []) },
+      order: { findUnique: jest.fn() },
+      driverLocation: { findFirst: jest.fn() },
+    };
+    const settings: any = {};
+    const audit: any = { log: jest.fn() };
+    const drivers: any = { create: jest.fn().mockResolvedValue({ id: 'd1' }) };
+    const merchants: any = { create: jest.fn().mockResolvedValue({ id: 'm1' }) };
+    return { service: new PublicSiteService(prisma, settings, audit, drivers, merchants), drivers, merchants, audit };
+  }
+
+  it('creates a pending driver from a website registration', async () => {
+    const { service, drivers, audit } = build({ id: 't1' });
+    const res = await service.registerDriver(
+      { fullName: 'سالم', phone: '+966500000020', password: 'password123', username: 'salem' } as any,
+      { ip: '1.2.3.4' },
+    );
+
+    expect(res).toMatchObject({ received: true, status: 'pending_approval' });
+    const [tenantId, dto, , opts] = drivers.create.mock.calls[0];
+    expect(tenantId).toBe('t1');
+    expect(dto.account).toMatchObject({ username: 'salem', password: 'password123' });
+    // Never auto-approve a public registration.
+    expect(opts).toMatchObject({ source: 'website', approvalStatus: 'pending' });
+    expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'website.driver_registration' }));
+  });
+
+  it('creates a pending merchant from a website registration', async () => {
+    const { service, merchants, audit } = build({ id: 't1' });
+    const res = await service.registerMerchant(
+      { businessName: 'متجر', ownerName: 'مالك', phone: '+966500000030', password: 'password123' } as any,
+      { ip: '1.2.3.4' },
+    );
+
+    expect(res).toMatchObject({ received: true, status: 'pending_approval' });
+    const [tenantId, dto, , opts] = merchants.create.mock.calls[0];
+    expect(tenantId).toBe('t1');
+    expect(dto.name).toBe('متجر');
+    expect(opts).toMatchObject({ source: 'website', approvalStatus: 'pending' });
+    expect(audit.log).toHaveBeenCalledWith(expect.objectContaining({ action: 'website.merchant_registration' }));
+  });
+
+  it('rejects registration when no tenant is configured', async () => {
+    const { service } = build(null);
+    await expect(
+      service.registerDriver({ fullName: 'x', phone: '+966500000020', password: 'password123' } as any, {}),
+    ).rejects.toMatchObject({ code: 'WEBSITE_NOT_CONFIGURED' });
   });
 });

@@ -3,7 +3,13 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Errors } from '../../common/errors/app-error';
 import { SettingsService } from '../settings/settings.service';
 import { AuditService } from '../audit/audit.service';
-import { PublicContactDto } from './dto/public-site.dto';
+import { DriversService } from '../drivers/drivers.service';
+import { MerchantsService } from '../merchants/merchants.service';
+import {
+  PublicContactDto,
+  PublicDriverRegistrationDto,
+  PublicMerchantRegistrationDto,
+} from './dto/public-site.dto';
 
 /**
  * Public website API (/api/v1/public/*). Unauthenticated by design.
@@ -57,6 +63,8 @@ export class PublicSiteService {
     private readonly prisma: PrismaService,
     private readonly settings: SettingsService,
     private readonly audit: AuditService,
+    private readonly drivers: DriversService,
+    private readonly merchants: MerchantsService,
   ) {}
 
   /**
@@ -200,5 +208,100 @@ export class PublicSiteService {
     });
 
     return { received: true, ticketId: ticket.id };
+  }
+
+  /**
+   * Public driver self-registration from the website. Creates a *pending*
+   * driver (plus login account) that an administrator must approve before the
+   * driver can sign in or receive orders. Always returns the same generic
+   * acknowledgement so the endpoint cannot be used to enumerate accounts.
+   */
+  async registerDriver(
+    dto: PublicDriverRegistrationDto,
+    meta: { ip?: string; userAgent?: string; tenantSlug?: string },
+  ) {
+    const tenant = await this.resolveTenant(meta.tenantSlug);
+    if (!tenant) {
+      throw Errors.conflict('WEBSITE_NOT_CONFIGURED', 'No active tenant is configured for the website');
+    }
+
+    await this.drivers.create(
+      tenant.id,
+      {
+        fullName: dto.fullName,
+        phone: dto.phone,
+        email: dto.email,
+        nationalId: dto.nationalId,
+        licenseNumber: dto.licenseNumber,
+        vehicleTypeId: dto.vehicleTypeId,
+        vehiclePlate: dto.vehiclePlate,
+        documents: dto.documents,
+        account: { email: dto.email, username: dto.username, password: dto.password },
+      } as any,
+      { userId: '', ip: meta.ip },
+      { source: 'website', approvalStatus: 'pending' },
+    );
+
+    await this.audit.log({
+      tenantId: tenant.id,
+      action: 'website.driver_registration',
+      entity: 'driver',
+      after: { phone: dto.phone },
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+
+    return {
+      received: true,
+      status: 'pending_approval',
+      message: 'Your registration was received and is awaiting administrator approval.',
+    };
+  }
+
+  /**
+   * Public merchant self-registration from the website. Creates a *pending*
+   * merchant (plus owner login account) awaiting administrator approval.
+   */
+  async registerMerchant(
+    dto: PublicMerchantRegistrationDto,
+    meta: { ip?: string; userAgent?: string; tenantSlug?: string },
+  ) {
+    const tenant = await this.resolveTenant(meta.tenantSlug);
+    if (!tenant) {
+      throw Errors.conflict('WEBSITE_NOT_CONFIGURED', 'No active tenant is configured for the website');
+    }
+
+    await this.merchants.create(
+      tenant.id,
+      {
+        name: dto.businessName,
+        ownerName: dto.ownerName,
+        phone: dto.phone,
+        email: dto.email,
+        category: dto.category,
+        commercialReg: dto.commercialReg,
+        vatNumber: dto.vatNumber,
+        address: dto.address,
+        documents: dto.documents,
+        account: { email: dto.email, username: dto.username, password: dto.password },
+      } as any,
+      { userId: '', ip: meta.ip },
+      { source: 'website', approvalStatus: 'pending' },
+    );
+
+    await this.audit.log({
+      tenantId: tenant.id,
+      action: 'website.merchant_registration',
+      entity: 'merchant',
+      after: { phone: dto.phone },
+      ip: meta.ip,
+      userAgent: meta.userAgent,
+    });
+
+    return {
+      received: true,
+      status: 'pending_approval',
+      message: 'Your registration was received and is awaiting administrator approval.',
+    };
   }
 }

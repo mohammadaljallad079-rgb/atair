@@ -11,6 +11,7 @@ export interface CreateUserDto {
   fullName: string;
   email?: string;
   phone?: string;
+  username?: string;
   password: string;
   roleSlugs: string[];
   branchId?: string;
@@ -20,6 +21,7 @@ export interface UpdateUserDto {
   fullName?: string;
   email?: string;
   phone?: string;
+  username?: string;
   status?: 'active' | 'invited' | 'suspended' | 'locked';
   roleSlugs?: string[];
 }
@@ -63,7 +65,7 @@ export class UsersService {
       this.prisma.user.findMany({
         where,
         select: {
-          id: true, fullName: true, email: true, phone: true, status: true,
+          id: true, fullName: true, email: true, phone: true, username: true, status: true,
           lastLoginAt: true, createdAt: true,
           userRoles: { include: { role: { select: { slug: true, name: true } } } },
         },
@@ -83,7 +85,7 @@ export class UsersService {
     const user = await this.prisma.user.findFirst({
       where: { id, tenantId },
       select: {
-        id: true, fullName: true, email: true, phone: true, status: true,
+        id: true, fullName: true, email: true, phone: true, username: true, status: true,
         userRoles: { include: { role: { select: { slug: true, name: true } } } },
       },
     });
@@ -94,6 +96,7 @@ export class UsersService {
   async create(tenantId: string, dto: CreateUserDto, actor: ActorContext) {
     const roles = await this.resolveRoles(tenantId, dto.roleSlugs);
     await this.assertCanGrant(tenantId, dto.roleSlugs, actor);
+    await this.assertIdentifierAvailable(tenantId, { email: dto.email, phone: dto.phone, username: dto.username });
     const passwordHash = await bcrypt.hash(dto.password, this.config.get<number>('security.bcryptRounds')!);
     const user = await this.prisma.user.create({
       data: {
@@ -101,19 +104,47 @@ export class UsersService {
         fullName: dto.fullName,
         email: dto.email?.toLowerCase(),
         phone: dto.phone,
+        username: dto.username,
         passwordHash,
         branchId: dto.branchId,
         userRoles: { create: roles.map((r) => ({ roleId: r.id })) },
       },
-      select: { id: true, fullName: true, email: true, phone: true, status: true },
+      select: { id: true, fullName: true, email: true, phone: true, username: true, status: true },
     });
     await this.audit.log({ tenantId, userId: actor.userId, action: 'user.create', entity: 'user', entityId: user.id, after: { ...user, roles: dto.roleSlugs }, ip: actor.ip });
     return user;
   }
 
+  /**
+   * Guards the tenant-scoped unique indexes (email / phone / username) with a
+   * friendly 409 instead of surfacing a raw Prisma unique-constraint error.
+   */
+  private async assertIdentifierAvailable(
+    tenantId: string,
+    ids: { email?: string; phone?: string; username?: string },
+    excludeUserId?: string,
+  ) {
+    const checks: Array<{ field: 'email' | 'phone' | 'username'; value?: string; code: string; message: string }> = [
+      { field: 'email', value: ids.email?.toLowerCase(), code: 'EMAIL_TAKEN', message: 'This email is already registered' },
+      { field: 'phone', value: ids.phone, code: 'PHONE_TAKEN', message: 'This phone number is already registered' },
+      { field: 'username', value: ids.username, code: 'USERNAME_TAKEN', message: 'This username is already taken' },
+    ];
+    for (const check of checks) {
+      if (!check.value) continue;
+      const existing = await this.prisma.user.findFirst({
+        where: { tenantId, [check.field]: check.value, ...(excludeUserId ? { id: { not: excludeUserId } } : {}) },
+        select: { id: true },
+      });
+      if (existing) throw Errors.conflict(check.code, check.message);
+    }
+  }
+
   async update(tenantId: string, id: string, dto: UpdateUserDto, actor: ActorContext) {
     const before = await this.get(tenantId, id);
     if (dto.roleSlugs) await this.assertCanGrant(tenantId, dto.roleSlugs, actor);
+    if (dto.email || dto.phone || dto.username) {
+      await this.assertIdentifierAvailable(tenantId, { email: dto.email, phone: dto.phone, username: dto.username }, id);
+    }
     const roles = dto.roleSlugs ? await this.resolveRoles(tenantId, dto.roleSlugs) : null;
 
     const user = await this.prisma.$transaction(async (tx) => {
@@ -130,9 +161,10 @@ export class UsersService {
           fullName: dto.fullName,
           email: dto.email?.toLowerCase(),
           phone: dto.phone,
+          username: dto.username,
           status: dto.status as any,
         },
-        select: { id: true, fullName: true, email: true, phone: true, status: true },
+        select: { id: true, fullName: true, email: true, phone: true, username: true, status: true },
       });
     });
 

@@ -90,15 +90,21 @@ export interface Driver {
   id: string; fullName: string; phone: string; email?: string | null;
   status: 'offline' | 'online' | 'busy' | 'paused' | 'suspended';
   verificationStatus: 'pending' | 'verified' | 'rejected' | 'expired';
+  approvalStatus: 'pending' | 'approved' | 'rejected' | 'suspended';
+  rejectionReason?: string | null; source?: 'admin' | 'website' | 'app';
+  reviewedAt?: string | null; approvedAt?: string | null;
   isAvailable: boolean; rating: number | null;
   completedOrders: number; cancelledOrders: number; totalEarnings: string;
-  nationalId?: string | null; suspendedReason?: string | null;
+  nationalId?: string | null; nationalIdExpiry?: string | null;
+  licenseNumber?: string | null; licenseExpiry?: string | null;
+  suspendedReason?: string | null;
   lastLocationAt: string | null; createdAt: string;
 }
 export interface DriverDetail extends Driver {
-  documents: Array<{ id: string; type: string; fileUrl: string; status: string; expiresAt: string | null; rejectReason: string | null }>;
+  documents: Array<{ id: string; type: string; fileUrl: string; number?: string | null; status: string; expiresAt: string | null; rejectReason: string | null }>;
   vehicles: Array<{ vehicleId: string; isActive: boolean; vehicle: Vehicle }>;
   wallet: { id: string; balance: string; pending: string; currency: string } | null;
+  user?: { id: string; email: string | null; username: string | null; status: string } | null;
   activeAssignment?: {
     id: string; orderNumber: string; status: OrderStatus;
     total: string; currency: string; createdAt: string;
@@ -124,11 +130,16 @@ export interface Merchant {
   id: string; name: string; slug: string; category?: string | null;
   phone?: string | null; email?: string | null;
   status: 'active' | 'inactive' | 'suspended';
+  approvalStatus: 'pending' | 'approved' | 'rejected' | 'suspended';
+  rejectionReason?: string | null; source?: 'admin' | 'website' | 'app';
+  ownerName?: string | null; commercialReg?: string | null; vatNumber?: string | null;
+  approvedAt?: string | null; reviewedAt?: string | null;
   commissionRate: string | null; createdAt: string;
 }
 export interface MerchantDetail extends Merchant {
   branches: Array<{ id: string; name: string; address: string; latitude: number | null; longitude: number | null; phone: string | null; status: string }>;
-  users?: Array<{ merchantId: string; role: string; user: { id: string; fullName: string; email: string | null; phone: string | null; status: string } }>;
+  users?: Array<{ merchantId: string; role: string; user: { id: string; fullName: string; email: string | null; username?: string | null; phone: string | null; status: string } }>;
+  documents?: Array<{ id: string; type: string; fileUrl: string; number?: string | null; status: string; expiresAt: string | null; rejectReason: string | null }>;
   orderCount?: number;
 }
 
@@ -148,7 +159,8 @@ export interface VehicleDetail extends Vehicle {
   }>;
 }
 export interface VehicleType {
-  id: string; name: string; slug: string; capacityKg: number | null; maxWeightKg: number | null; isActive: boolean;
+  id: string; name: string; slug: string; capacityKg: number | null; maxWeightKg: number | null;
+  icon?: string | null; isActive: boolean; createdAt?: string;
 }
 
 // ---- Zones / Pricing ----
@@ -263,7 +275,7 @@ export interface SecurityEvent {
 
 // ---- Users / Roles ----
 export interface StaffUser {
-  id: string; fullName: string; email: string | null; phone: string | null;
+  id: string; fullName: string; email: string | null; phone: string | null; username?: string | null;
   status: 'active' | 'invited' | 'suspended' | 'locked';
   lastLoginAt: string | null; createdAt: string; roles: string[];
 }

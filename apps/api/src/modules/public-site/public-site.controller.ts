@@ -3,7 +3,11 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Public } from '../../common/decorators/public.decorator';
 import { PublicSiteService } from './public-site.service';
-import { PublicContactDto } from './dto/public-site.dto';
+import {
+  PublicContactDto,
+  PublicDriverRegistrationDto,
+  PublicMerchantRegistrationDto,
+} from './dto/public-site.dto';
 
 /**
  * Public website API (/api/v1/public/*) — no authentication.
@@ -43,5 +47,31 @@ export class PublicSiteController {
     @Query('tenant') tenant?: string,
   ) {
     return this.publicSite.contact(dto, { ip, userAgent, tenantSlug: tenant });
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('register/driver')
+  @ApiOperation({ summary: 'Public driver self-registration (pending admin approval)' })
+  registerDriver(
+    @Body() dto: PublicDriverRegistrationDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent?: string,
+    @Query('tenant') tenant?: string,
+  ) {
+    return this.publicSite.registerDriver(dto, { ip, userAgent, tenantSlug: tenant });
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('register/merchant')
+  @ApiOperation({ summary: 'Public merchant self-registration (pending admin approval)' })
+  registerMerchant(
+    @Body() dto: PublicMerchantRegistrationDto,
+    @Ip() ip: string,
+    @Headers('user-agent') userAgent?: string,
+    @Query('tenant') tenant?: string,
+  ) {
+    return this.publicSite.registerMerchant(dto, { ip, userAgent, tenantSlug: tenant });
   }
 }

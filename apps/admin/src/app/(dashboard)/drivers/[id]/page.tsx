@@ -28,9 +28,39 @@ export default function DriverDetailPage() {
   const [suspendOpen, setSuspendOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const [vehicleOpen, setVehicleOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState('');
   const [unassignTarget, setUnassignTarget] = useState<{ vehicleId: string; plate: string } | null>(null);
+
+  async function approve() {
+    setBusy(true);
+    try {
+      await endpoints.approveDriver(id);
+      notify(t('common.save'));
+      driver.reload();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reject() {
+    setBusy(true);
+    try {
+      await endpoints.rejectDriver(id, rejectReason || undefined);
+      notify(t('common.save'));
+      setRejectOpen(false);
+      setRejectReason('');
+      driver.reload();
+    } catch (err) {
+      notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function doSuspend() {
     setBusy(true);
@@ -121,6 +151,12 @@ export default function DriverDetailPage() {
         actions={
           <>
             <Button variant="ghost" size="sm" onClick={() => router.push('/drivers')}>{t('common.close')}</Button>
+            {d.approvalStatus !== 'approved' && (
+              <PermissionGate permission="drivers.verify">
+                <Button variant="success" size="sm" loading={busy} onClick={approve}>{t('drivers.approve')}</Button>
+                <Button variant="danger" size="sm" onClick={() => setRejectOpen(true)}>{t('drivers.reject')}</Button>
+              </PermissionGate>
+            )}
             <PermissionGate permission="drivers.update">
               <Button
                 variant="secondary"
@@ -145,8 +181,12 @@ export default function DriverDetailPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricCard label={t('common.status')} value={<StatusBadge status={d.status} />} />
         <MetricCard label={t('drivers.verification')} value={<StatusBadge status={d.verificationStatus} />} />
+        <MetricCard label={t('drivers.approvalStatus')} value={<StatusBadge status={d.approvalStatus} />} />
         <MetricCard label={t('drivers.completed')} value={formatNumber(d.completedOrders, locale)} tone="success" />
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricCard label={t('drivers.earnings')} value={formatMoney(d.totalEarnings, 'SAR', locale)} tone="brand" />
+        {d.source && <MetricCard label={t('common.source')} value={t(`source.${d.source}`)} />}
       </div>
 
       {d.activeAssignment && (
@@ -231,6 +271,22 @@ export default function DriverDetailPage() {
           </div>
         ) : <p className="text-sm text-slate-400">{t('common.empty')}</p>}
       </Card>
+
+      <Modal
+        open={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        title={t('drivers.reject')}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setRejectOpen(false)}>{t('common.cancel')}</Button>
+            <Button variant="danger" loading={busy} onClick={reject}>{t('drivers.reject')}</Button>
+          </>
+        }
+      >
+        <Field label={t('drivers.rejectReason')}>
+          <Textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
+        </Field>
+      </Modal>
 
       <Modal
         open={suspendOpen}

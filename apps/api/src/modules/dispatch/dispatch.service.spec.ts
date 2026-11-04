@@ -13,7 +13,7 @@ describe('DispatchService.board', () => {
       driver: { findMany: jest.fn().mockResolvedValue([]) },
       $transaction: jest.fn().mockImplementation((ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
     };
-    return { service: new DispatchService(prisma), prisma };
+    return { service: new DispatchService(prisma, { emit: jest.fn() } as any), prisma };
   }
 
   it('scopes every query to the tenant', async () => {

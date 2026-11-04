@@ -49,6 +49,8 @@ export const endpoints = {
   driver: (id: string) => api.get<DriverDetail>(`/drivers/${id}`),
   createDriver: (body: unknown) => api.post<Driver>('/drivers', body),
   updateDriver: (id: string, body: unknown) => api.patch<Driver>(`/drivers/${id}`, body),
+  approveDriver: (id: string) => api.post<Driver>(`/drivers/${id}/approve`),
+  rejectDriver: (id: string, reason?: string) => api.post<Driver>(`/drivers/${id}/reject`, { reason }),
   suspendDriver: (id: string, reason?: string) => api.post<Driver>(`/drivers/${id}/suspend`, { reason }),
   unsuspendDriver: (id: string) => api.post<Driver>(`/drivers/${id}/unsuspend`),
   setDriverAvailability: (id: string, isAvailable: boolean) =>
@@ -70,11 +72,20 @@ export const endpoints = {
   merchant: (id: string) => api.get<MerchantDetail>(`/merchants/${id}`),
   createMerchant: (body: unknown) => api.post<Merchant>('/merchants', body),
   updateMerchant: (id: string, body: unknown) => api.patch<Merchant>(`/merchants/${id}`, body),
+  approveMerchant: (id: string) => api.post<Merchant>(`/merchants/${id}/approve`),
+  rejectMerchant: (id: string, reason?: string) => api.post<Merchant>(`/merchants/${id}/reject`, { reason }),
+  suspendMerchant: (id: string, reason?: string) => api.post<Merchant>(`/merchants/${id}/suspend`, { reason }),
+  reactivateMerchant: (id: string) => api.post<Merchant>(`/merchants/${id}/reactivate`),
+  reviewMerchantDocument: (id: string, docId: string, status: 'approved' | 'rejected', rejectReason?: string) =>
+    api.post<unknown>(`/merchants/${id}/documents/${docId}/review`, { status, rejectReason }),
 
   // Vehicles
   vehicles: (q: Q) => api.getList<Vehicle>('/vehicles', q),
   vehicle: (id: string) => api.get<VehicleDetail>(`/vehicles/${id}`),
   vehicleTypes: () => api.get<VehicleType[]>('/vehicles/types'),
+  allVehicleTypes: () => api.get<VehicleType[]>('/vehicles/types/all'),
+  createVehicleType: (body: unknown) => api.post<VehicleType>('/vehicles/types', body),
+  updateVehicleType: (id: string, body: unknown) => api.patch<VehicleType>(`/vehicles/types/${id}`, body),
   createVehicle: (body: unknown) => api.post<Vehicle>('/vehicles', body),
   updateVehicle: (id: string, body: unknown) => api.patch<Vehicle>(`/vehicles/${id}`, body),
   setVehicleStatus: (id: string, status: string) => api.patch<Vehicle>(`/vehicles/${id}/status`, { status }),
