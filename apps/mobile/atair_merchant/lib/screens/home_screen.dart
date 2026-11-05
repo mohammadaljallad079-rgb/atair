@@ -17,6 +17,7 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
   List<OrderSummary> _orders = [];
   bool _loading = true;
   String? _error;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -28,6 +29,7 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _loadFailed = false;
     });
     try {
       final dashboard = await widget.auth.api.merchantDashboard();
@@ -41,7 +43,7 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'تعذّر تحميل لوحة التحكم');
+      if (mounted) setState(() => _loadFailed = true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -50,78 +52,79 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final d = _dashboard;
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AtairAppBar(
-          title: 'عَ الطاير — التاجر',
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined),
-              tooltip: 'الإشعارات',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => MerchantNotificationsScreen(auth: widget.auth)),
-              ),
+    final rtl = context.isRtl;
+    return Scaffold(
+      appBar: AtairAppBar(
+        title: context.tr('app.title'),
+        actions: [
+          const LanguageToggleButton(),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: context.tr('notifications.title'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => MerchantNotificationsScreen(auth: widget.auth)),
             ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'تسجيل الخروج',
-              onPressed: () => widget.auth.logout(),
-            ),
-          ],
-        ),
-        body: RefreshIndicator(
-          onRefresh: _load,
-          child: _loading
-              ? const LoadingView()
-              : _error != null
-                  ? ErrorView(message: _error!, onRetry: _load)
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        const Text('ملخّص اليوم', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(child: MetricTile(label: 'طلبات اليوم', value: '${d?.ordersTotal ?? 0}', icon: Icons.receipt_long_outlined)),
-                            const SizedBox(width: 10),
-                            Expanded(child: MetricTile(label: 'مبالغ التحصيل المعلّقة', value: AtairFormat.money(d?.codPending), icon: Icons.payments_outlined, color: AtairTheme.ink)),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(child: MetricTile(label: 'تم التسليم', value: '${d?.ordersDelivered ?? 0}', icon: Icons.done_all, color: const Color(0xFF16A34A))),
-                            const SizedBox(width: 10),
-                            Expanded(child: MetricTile(label: 'قيد الانتظار', value: '${d?.ordersPending ?? 0}', icon: Icons.hourglass_bottom, color: const Color(0xFFD97706))),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            Expanded(child: MetricTile(label: 'قيد التوصيل', value: '${d?.ordersInTransit ?? 0}', icon: Icons.local_shipping_outlined, color: AtairTheme.ink)),
-                            const SizedBox(width: 10),
-                            Expanded(child: MetricTile(label: 'ملغاة', value: '${d?.ordersCancelled ?? 0}', icon: Icons.cancel_outlined, color: const Color(0xFFDC2626))),
-                          ],
-                        ),
-                        const SizedBox(height: 22),
-                        const Text('أحدث الطلبات', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                        const SizedBox(height: 10),
-                        if (_orders.isEmpty)
-                          const Padding(padding: EdgeInsets.all(24), child: EmptyView(message: 'لا توجد طلبات'))
-                        else
-                          ..._orders.map((o) => Card(
-                                child: ListTile(
-                                  title: Text(o.orderNumber.isEmpty ? o.id.substring(0, 8) : o.orderNumber,
-                                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                                  subtitle: Text('${o.dropoffAddress} • ${AtairFormat.money(o.total, o.currency)}'),
-                                  trailing: StatusPill(label: AtairFormat.status(o.status), color: statusColor(o.status)),
-                                ),
-                              )),
-                        const SizedBox(height: 40),
-                      ],
-                    ),
-        ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: context.tr('common.logout'),
+            onPressed: () => widget.auth.logout(),
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: _loading
+            ? const LoadingView()
+            : _error != null
+                ? ErrorView(message: _error!, onRetry: _load)
+                : _loadFailed
+                    ? ErrorView(message: context.tr('merchant.loadDashboardFailed'), onRetry: _load)
+                    : ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          Text(context.tr('merchant.todaySummary'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(child: MetricTile(label: context.tr('merchant.ordersToday'), value: '${d?.ordersTotal ?? 0}', icon: Icons.receipt_long_outlined)),
+                              const SizedBox(width: 10),
+                              Expanded(child: MetricTile(label: context.tr('merchant.codPending'), value: AtairFormat.money(d?.codPending), icon: Icons.payments_outlined, color: AtairTheme.ink)),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(child: MetricTile(label: context.tr('merchant.delivered'), value: '${d?.ordersDelivered ?? 0}', icon: Icons.done_all, color: const Color(0xFF16A34A))),
+                              const SizedBox(width: 10),
+                              Expanded(child: MetricTile(label: context.tr('merchant.pending'), value: '${d?.ordersPending ?? 0}', icon: Icons.hourglass_bottom, color: const Color(0xFFD97706))),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            children: [
+                              Expanded(child: MetricTile(label: context.tr('merchant.inTransit'), value: '${d?.ordersInTransit ?? 0}', icon: Icons.local_shipping_outlined, color: AtairTheme.ink)),
+                              const SizedBox(width: 10),
+                              Expanded(child: MetricTile(label: context.tr('merchant.cancelled'), value: '${d?.ordersCancelled ?? 0}', icon: Icons.cancel_outlined, color: const Color(0xFFDC2626))),
+                            ],
+                          ),
+                          const SizedBox(height: 22),
+                          Text(context.tr('merchant.latestOrders'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                          const SizedBox(height: 10),
+                          if (_orders.isEmpty)
+                            Padding(padding: const EdgeInsets.all(24), child: EmptyView(message: context.tr('merchant.noOrders')))
+                          else
+                            ..._orders.map((o) => Card(
+                                  child: ListTile(
+                                    title: Text(o.orderNumber.isEmpty ? o.id.substring(0, 8) : o.orderNumber,
+                                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                                    subtitle: Text('${o.dropoffAddress} • ${AtairFormat.money(o.total, o.currency)}'),
+                                    trailing: StatusPill(label: AtairFormat.status(o.status, rtl: rtl), color: statusColor(o.status)),
+                                  ),
+                                )),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
       ),
     );
   }

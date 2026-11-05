@@ -37,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'تعذّر تحميل الطلبات');
+      if (mounted) setState(() => _error = context.tr('customer.loadOrdersFailed'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -53,103 +53,101 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = widget.auth.user;
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AtairAppBar(
-          title: 'عَ الطاير',
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined),
-              tooltip: 'الإشعارات',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => CustomerNotificationsScreen(auth: widget.auth)),
-              ),
+    return Scaffold(
+      appBar: AtairAppBar(
+        title: context.tr('app.brand'),
+        actions: [
+          const LanguageToggleButton(),
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: context.tr('customer.notifications'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => CustomerNotificationsScreen(auth: widget.auth)),
             ),
-            IconButton(
-              icon: const Icon(Icons.person_outline),
-              tooltip: 'حسابي',
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => CustomerProfileScreen(auth: widget.auth)),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'تسجيل الخروج',
-              onPressed: () => widget.auth.logout(),
-            ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _newOrder,
-          backgroundColor: AtairTheme.brand,
-          foregroundColor: Colors.white,
-          icon: const Icon(Icons.add),
-          label: const Text('طلب جديد'),
-        ),
-        body: RefreshIndicator(
-          onRefresh: _load,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      const CircleAvatar(
-                        backgroundColor: Color(0x1FF97316),
-                        child: Text('👤', style: TextStyle(fontSize: 20)),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('مرحبًا، ${user?.fullName ?? ''}',
-                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                            const SizedBox(height: 2),
-                            Text(user?.phone ?? '', style: const TextStyle(color: AtairTheme.textMuted, fontSize: 13)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 18),
-              const Row(
-                children: [
-                  Icon(Icons.local_shipping_outlined, size: 20, color: AtairTheme.ink),
-                  SizedBox(width: 8),
-                  Text('شحناتي', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
-                ],
-              ),
-              const SizedBox(height: 10),
-              if (_loading)
-                const Padding(padding: EdgeInsets.all(32), child: LoadingView())
-              else if (_error != null)
-                ErrorView(message: _error!, onRetry: _load)
-              else if ((_orders ?? []).isEmpty)
-                const Padding(padding: EdgeInsets.all(32), child: EmptyView(message: 'لا توجد طلبات بعد', icon: Icons.inbox_outlined))
-              else
-                ...(_orders!).map(
-                  (o) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: _OrderTile(
-                      order: o,
-                      onTap: () async {
-                        await Navigator.of(context).push(
-                          MaterialPageRoute(builder: (_) => OrderDetailScreen(auth: widget.auth, orderId: o.id)),
-                        );
-                        _load();
-                      },
-                    ),
-                  ),
-                ),
-              const SizedBox(height: 80),
-            ],
           ),
+          IconButton(
+            icon: const Icon(Icons.person_outline),
+            tooltip: context.tr('customer.account'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => CustomerProfileScreen(auth: widget.auth)),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: context.tr('common.logout'),
+            onPressed: () => widget.auth.logout(),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _newOrder,
+        backgroundColor: AtairTheme.brand,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: Text(context.tr('customer.newOrder')),
+      ),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      backgroundColor: Color(0x1FF97316),
+                      child: Text('👤', style: TextStyle(fontSize: 20)),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(context.tr('customer.welcome', {'name': user?.fullName ?? ''}),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                          const SizedBox(height: 2),
+                          Text(user?.phone ?? '', style: const TextStyle(color: AtairTheme.textMuted, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const Icon(Icons.local_shipping_outlined, size: 20, color: AtairTheme.ink),
+                const SizedBox(width: 8),
+                Text(context.tr('customer.myShipments'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (_loading)
+              const Padding(padding: EdgeInsets.all(32), child: LoadingView())
+            else if (_error != null)
+              ErrorView(message: _error!, onRetry: _load)
+            else if ((_orders ?? []).isEmpty)
+              Padding(padding: const EdgeInsets.all(32), child: EmptyView(message: context.tr('customer.noOrders'), icon: Icons.inbox_outlined))
+            else
+              ...(_orders!).map(
+                (o) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _OrderTile(
+                    order: o,
+                    onTap: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => OrderDetailScreen(auth: widget.auth, orderId: o.id)),
+                      );
+                      _load();
+                    },
+                  ),
+                ),
+              ),
+            const SizedBox(height: 80),
+          ],
         ),
       ),
     );
@@ -163,6 +161,7 @@ class _OrderTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rtl = context.isRtl;
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
@@ -178,7 +177,7 @@ class _OrderTile extends StatelessWidget {
                     child: Text(order.orderNumber.isEmpty ? order.id.substring(0, 8) : order.orderNumber,
                         style: const TextStyle(fontWeight: FontWeight.w700)),
                   ),
-                  StatusPill(label: AtairFormat.status(order.status), color: statusColor(order.status)),
+                  StatusPill(label: AtairFormat.status(order.status, rtl: rtl), color: statusColor(order.status)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -203,7 +202,7 @@ class _OrderTile extends StatelessWidget {
                   Text(AtairFormat.money(order.total, order.currency),
                       style: const TextStyle(fontWeight: FontWeight.w700, color: AtairTheme.brand)),
                   const Spacer(),
-                  Text(AtairFormat.dateTime(order.createdAt),
+                  Text(AtairFormat.dateTime(order.createdAt, rtl: rtl),
                       style: const TextStyle(fontSize: 11, color: AtairTheme.textMuted)),
                 ],
               ),

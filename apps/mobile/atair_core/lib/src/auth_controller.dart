@@ -28,10 +28,18 @@ class AuthController extends ChangeNotifier {
   bool _booting = true;
   bool _busy = false;
   String? _error;
+  String? _errorKey;
 
   bool get booting => _booting;
   bool get busy => _busy;
+
+  /// A server-supplied message (already localized by the API when it can).
   String? get error => _error;
+
+  /// A local message key to resolve through [LocaleController] (e.g. role
+  /// denial), so the text follows the selected language.
+  String? get errorKey => _errorKey;
+
   bool get isAuthenticated => session.isAuthenticated;
   AppUser? get user => session.user == null ? null : AppUser(session.user!);
 
@@ -44,21 +52,29 @@ class AuthController extends ChangeNotifier {
   Future<bool> login(String identifier, String password, {String? tenantSlug}) async {
     _busy = true;
     _error = null;
+    _errorKey = null;
     notifyListeners();
     try {
       final data = await client.login(identifier, password, tenantSlug: tenantSlug);
       final roles = ((data['user'] as Map)['roles'] as List?)?.cast<String>() ?? const [];
       if (requiredRoles.isNotEmpty && !roles.any(requiredRoles.contains)) {
         await client.logout();
-        _error = 'هذا الحساب غير مصرّح له بالدخول إلى هذا التطبيق';
+        _errorKey = 'login.roleDenied';
         return false;
       }
       return true;
     } on ApiException catch (e) {
+      // Network failures carry a stable code so the UI can localize them; other
+      // errors keep the server message verbatim.
       _error = e.message;
+      _errorKey = e.code == 'TIMEOUT'
+          ? 'net.timeout'
+          : e.code == 'NETWORK_ERROR'
+              ? 'net.error'
+              : null;
       return false;
     } catch (_) {
-      _error = 'تعذّر تسجيل الدخول، حاول مرة أخرى';
+      _errorKey = 'login.failed';
       return false;
     } finally {
       _busy = false;

@@ -30,6 +30,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
   bool _quoting = false;
   bool _submitting = false;
   String? _error;
+  String? _errorKey;
 
   @override
   void initState() {
@@ -70,12 +71,13 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   Future<void> _getQuote() async {
     if (_pickup.text.trim().isEmpty || _dropoff.text.trim().isEmpty) {
-      setState(() => _error = 'أدخل عنوان الاستلام والتسليم');
+      setState(() => _errorKey = 'newOrder.enterAddresses');
       return;
     }
     setState(() {
       _quoting = true;
       _error = null;
+      _errorKey = null;
     });
     try {
       final q = await widget.auth.api.customerQuote(_baseBody());
@@ -83,7 +85,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'تعذّر حساب السعر');
+      if (mounted) setState(() => _errorKey = 'newOrder.quoteFailed');
     } finally {
       if (mounted) setState(() => _quoting = false);
     }
@@ -91,12 +93,13 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   Future<void> _submit() async {
     if (_quote == null) {
-      setState(() => _error = 'احسب السعر أولًا');
+      setState(() => _errorKey = 'newOrder.quoteFirst');
       return;
     }
     setState(() {
       _submitting = true;
       _error = null;
+      _errorKey = null;
     });
     try {
       await widget.auth.api.customerCreateOrder(_baseBody());
@@ -104,7 +107,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'تعذّر إنشاء الطلب');
+      if (mounted) setState(() => _errorKey = 'newOrder.createFailed');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -112,108 +115,106 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(title: const Text('طلب جديد')),
-        body: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            _section('تفاصيل الاستلام'),
-            TextField(controller: _pickup, decoration: const InputDecoration(labelText: 'عنوان الاستلام', prefixIcon: Icon(Icons.trip_origin))),
-            const SizedBox(height: 12),
-            _section('تفاصيل التسليم'),
-            TextField(controller: _dropoff, decoration: const InputDecoration(labelText: 'عنوان التسليم', prefixIcon: Icon(Icons.place_outlined))),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: TextField(controller: _recipientName, decoration: const InputDecoration(labelText: 'اسم المستلم'))),
-                const SizedBox(width: 10),
-                Expanded(child: TextField(controller: _recipientPhone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'جوال المستلم'))),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (_areas.isNotEmpty)
-              DropdownButtonFormField<String>(
-                value: _areaId,
-                decoration: const InputDecoration(labelText: 'منطقة الخدمة', prefixIcon: Icon(Icons.map_outlined)),
-                items: _areas.map((a) => DropdownMenuItem(value: a.id, child: Text(a.name))).toList(),
-                onChanged: (v) => setState(() => _areaId = v),
-              ),
-            const SizedBox(height: 12),
-            _section('تفاصيل الشحنة'),
-            TextField(controller: _package, decoration: const InputDecoration(labelText: 'وصف الشحنة', prefixIcon: Icon(Icons.inventory_2_outlined))),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: TextField(controller: _weight, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الوزن (كجم)'))),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('قابلة للكسر', style: TextStyle(fontSize: 14)),
-                    value: _fragile,
-                    onChanged: (v) => setState(() => _fragile = v),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
+    return Scaffold(
+      appBar: AppBar(title: Text(context.tr('newOrder.title'))),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _section(context.tr('newOrder.pickupSection')),
+          TextField(controller: _pickup, decoration: InputDecoration(labelText: context.tr('newOrder.pickupAddress'), prefixIcon: const Icon(Icons.trip_origin))),
+          const SizedBox(height: 12),
+          _section(context.tr('newOrder.dropoffSection')),
+          TextField(controller: _dropoff, decoration: InputDecoration(labelText: context.tr('newOrder.dropoffAddress'), prefixIcon: const Icon(Icons.place_outlined))),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: TextField(controller: _recipientName, decoration: InputDecoration(labelText: context.tr('newOrder.recipientName')))),
+              const SizedBox(width: 10),
+              Expanded(child: TextField(controller: _recipientPhone, keyboardType: TextInputType.phone, decoration: InputDecoration(labelText: context.tr('newOrder.recipientPhone')))),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_areas.isNotEmpty)
             DropdownButtonFormField<String>(
-              value: _paymentMethod,
-              decoration: const InputDecoration(labelText: 'طريقة الدفع', prefixIcon: Icon(Icons.payments_outlined)),
-              items: const [
-                DropdownMenuItem(value: 'cash', child: Text('نقدًا عند التسليم')),
-                DropdownMenuItem(value: 'cod', child: Text('تحصيل مبلغ (COD)')),
-              ],
-              onChanged: (v) => setState(() => _paymentMethod = v ?? 'cash'),
+              value: _areaId,
+              decoration: InputDecoration(labelText: context.tr('newOrder.serviceArea'), prefixIcon: const Icon(Icons.map_outlined)),
+              items: _areas.map((a) => DropdownMenuItem(value: a.id, child: Text(a.name))).toList(),
+              onChanged: (v) => setState(() => _areaId = v),
             ),
-            if (_paymentMethod == 'cod') ...[
-              const SizedBox(height: 12),
-              TextField(controller: _cod, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'المبلغ المحصّل', prefixIcon: Icon(Icons.attach_money))),
-            ],
-            const SizedBox(height: 12),
-            TextField(controller: _notes, maxLines: 2, decoration: const InputDecoration(labelText: 'ملاحظات', prefixIcon: Icon(Icons.notes_outlined))),
-            if (_error != null) ...[
-              const SizedBox(height: 14),
-              Text(_error!, style: const TextStyle(color: Color(0xFFB91C1C))),
-            ],
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: _quoting ? null : _getQuote,
-              icon: _quoting
-                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.calculate_outlined),
-              label: const Text('حساب السعر'),
-            ),
-            if (_quote != null) ...[
-              const SizedBox(height: 12),
-              Card(
-                color: const Color(0xFFFFF7ED),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.local_shipping, color: AtairTheme.brand),
-                      const SizedBox(width: 10),
-                      const Expanded(child: Text('السعر التقديري', style: TextStyle(fontWeight: FontWeight.w600))),
-                      Text(AtairFormat.money(_quote!.total, _quote!.currency),
-                          style: const TextStyle(fontWeight: FontWeight.w800, color: AtairTheme.brandDark, fontSize: 16)),
-                    ],
-                  ),
+          const SizedBox(height: 12),
+          _section(context.tr('newOrder.packageSection')),
+          TextField(controller: _package, decoration: InputDecoration(labelText: context.tr('newOrder.packageDescription'), prefixIcon: const Icon(Icons.inventory_2_outlined))),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: TextField(controller: _weight, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: context.tr('newOrder.weight')))),
+              const SizedBox(width: 10),
+              Expanded(
+                child: SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(context.tr('newOrder.fragile'), style: const TextStyle(fontSize: 14)),
+                  value: _fragile,
+                  onChanged: (v) => setState(() => _fragile = v),
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            FilledButton(
-              onPressed: _submitting ? null : _submit,
-              child: _submitting
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('تأكيد الطلب'),
-            ),
-            const SizedBox(height: 30),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _paymentMethod,
+            decoration: InputDecoration(labelText: context.tr('newOrder.paymentMethod'), prefixIcon: const Icon(Icons.payments_outlined)),
+            items: [
+              DropdownMenuItem(value: 'cash', child: Text(context.tr('newOrder.cash'))),
+              DropdownMenuItem(value: 'cod', child: Text(context.tr('newOrder.cod'))),
+            ],
+            onChanged: (v) => setState(() => _paymentMethod = v ?? 'cash'),
+          ),
+          if (_paymentMethod == 'cod') ...[
+            const SizedBox(height: 12),
+            TextField(controller: _cod, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: context.tr('newOrder.codAmount'), prefixIcon: const Icon(Icons.attach_money))),
           ],
-        ),
+          const SizedBox(height: 12),
+          TextField(controller: _notes, maxLines: 2, decoration: InputDecoration(labelText: context.tr('newOrder.notes'), prefixIcon: const Icon(Icons.notes_outlined))),
+          if (_error != null || _errorKey != null) ...[
+            const SizedBox(height: 14),
+            Text(_errorKey != null ? context.tr(_errorKey!) : _error!,
+                style: const TextStyle(color: Color(0xFFB91C1C))),
+          ],
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: _quoting ? null : _getQuote,
+            icon: _quoting
+                ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.calculate_outlined),
+            label: Text(context.tr('newOrder.getQuote')),
+          ),
+          if (_quote != null) ...[
+            const SizedBox(height: 12),
+            Card(
+              color: const Color(0xFFFFF7ED),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  children: [
+                    const Icon(Icons.local_shipping, color: AtairTheme.brand),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(context.tr('newOrder.estimated'), style: const TextStyle(fontWeight: FontWeight.w600))),
+                    Text(AtairFormat.money(_quote!.total, _quote!.currency),
+                        style: const TextStyle(fontWeight: FontWeight.w800, color: AtairTheme.brandDark, fontSize: 16)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          FilledButton(
+            onPressed: _submitting ? null : _submit,
+            child: _submitting
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Text(context.tr('newOrder.confirm')),
+          ),
+          const SizedBox(height: 30),
+        ],
       ),
     );
   }

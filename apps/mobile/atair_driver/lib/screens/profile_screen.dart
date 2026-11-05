@@ -14,6 +14,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _loading = true;
   String? _error;
+  bool _loadFailed = false;
 
   @override
   void initState() {
@@ -25,6 +26,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _loadFailed = false;
     });
     try {
       final profile = await widget.auth.api.driverProfile();
@@ -32,7 +34,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'تعذّر تحميل الملف الشخصي');
+      if (mounted) setState(() => _loadFailed = true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -45,39 +47,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final nationality = TextEditingController(text: '${p['nationality'] ?? ''}');
     final saved = await showDialog<bool>(
       context: context,
-      builder: (ctx) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: AlertDialog(
-          title: const Text('تعديل الملف'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: email, keyboardType: TextInputType.emailAddress, textDirection: TextDirection.ltr, decoration: const InputDecoration(labelText: 'البريد الإلكتروني')),
-              const SizedBox(height: 12),
-              TextField(controller: nationality, decoration: const InputDecoration(labelText: 'الجنسية')),
-              const SizedBox(height: 12),
-              TextField(controller: address, maxLines: 2, decoration: const InputDecoration(labelText: 'العنوان')),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('تراجع')),
-            FilledButton(
-              onPressed: () async {
-                try {
-                  await widget.auth.api.driverUpdateProfile({
-                    if (email.text.trim().isNotEmpty) 'email': email.text.trim(),
-                    if (nationality.text.trim().isNotEmpty) 'nationality': nationality.text.trim(),
-                    if (address.text.trim().isNotEmpty) 'address': address.text.trim(),
-                  });
-                  if (ctx.mounted) Navigator.pop(ctx, true);
-                } on ApiException catch (e) {
-                  if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.message)));
-                }
-              },
-              child: const Text('حفظ'),
-            ),
+      builder: (ctx) => AlertDialog(
+        title: Text(ctx.tr('driver.editProfile')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: email, keyboardType: TextInputType.emailAddress, textDirection: TextDirection.ltr, decoration: InputDecoration(labelText: ctx.tr('driver.email'))),
+            const SizedBox(height: 12),
+            TextField(controller: nationality, decoration: InputDecoration(labelText: ctx.tr('driver.nationality'))),
+            const SizedBox(height: 12),
+            TextField(controller: address, maxLines: 2, decoration: InputDecoration(labelText: ctx.tr('driver.address'))),
           ],
         ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(ctx.tr('orderDetail.cancelBack'))),
+          FilledButton(
+            onPressed: () async {
+              try {
+                await widget.auth.api.driverUpdateProfile({
+                  if (email.text.trim().isNotEmpty) 'email': email.text.trim(),
+                  if (nationality.text.trim().isNotEmpty) 'nationality': nationality.text.trim(),
+                  if (address.text.trim().isNotEmpty) 'address': address.text.trim(),
+                });
+                if (ctx.mounted) Navigator.pop(ctx, true);
+              } on ApiException catch (e) {
+                if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(e.message)));
+              }
+            },
+            child: Text(ctx.tr('common.save')),
+          ),
+        ],
       ),
     );
     if (saved == true) _load();
@@ -87,64 +86,64 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final p = _profile ?? {};
     final vehicle = (p['vehicle'] as Map?)?.cast<String, dynamic>();
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: RefreshIndicator(
-        onRefresh: _load,
-        child: _loading
-            ? const LoadingView()
-            : _error != null
-                ? ErrorView(message: _error!, onRetry: _load)
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(18),
-                          child: Column(
-                            children: [
-                              const CircleAvatar(
-                                radius: 34,
-                                backgroundColor: Color(0x1FF97316),
-                                child: Text('🧑‍✈️', style: TextStyle(fontSize: 30)),
-                              ),
-                              const SizedBox(height: 12),
-                              Text('${p['fullName'] ?? ''}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                              const SizedBox(height: 4),
-                              Text('${p['phone'] ?? ''}', style: const TextStyle(color: AtairTheme.textMuted)),
-                              const SizedBox(height: 10),
-                              StatusPill(
-                                label: AtairFormat.approval('${p['approvalStatus'] ?? ''}'),
-                                color: statusColor('${p['approvalStatus'] ?? ''}'),
-                              ),
-                              const SizedBox(height: 14),
-                              OutlinedButton.icon(
-                                onPressed: _edit,
-                                icon: const Icon(Icons.edit_outlined, size: 18),
-                                label: const Text('تعديل الملف'),
-                              ),
-                            ],
+    final rtl = context.isRtl;
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: _loading
+          ? const LoadingView()
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _loadFailed
+                  ? ErrorView(message: context.tr('driver.loadProfileFailed'), onRetry: _load)
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Column(
+                              children: [
+                                const CircleAvatar(
+                                  radius: 34,
+                                  backgroundColor: Color(0x1FF97316),
+                                  child: Text('🧑‍✈️', style: TextStyle(fontSize: 30)),
+                                ),
+                                const SizedBox(height: 12),
+                                Text('${p['fullName'] ?? ''}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                                const SizedBox(height: 4),
+                                Text('${p['phone'] ?? ''}', style: const TextStyle(color: AtairTheme.textMuted)),
+                                const SizedBox(height: 10),
+                                StatusPill(
+                                  label: AtairFormat.approval('${p['approvalStatus'] ?? ''}', rtl: rtl),
+                                  color: statusColor('${p['approvalStatus'] ?? ''}'),
+                                ),
+                                const SizedBox(height: 14),
+                                OutlinedButton.icon(
+                                  onPressed: _edit,
+                                  icon: const Icon(Icons.edit_outlined, size: 18),
+                                  label: Text(context.tr('driver.editProfile')),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 14),
-                      _infoCard('البيانات المهنية', [
-                        _row('رقم الرخصة', '${p['licenseNumber'] ?? '—'}'),
-                        _row('الجنسية', '${p['nationality'] ?? '—'}'),
-                        _row('تصنيف الخدمة', '${p['classification'] ?? '—'}'),
-                        _row('نوع التوظيف', '${p['employmentType'] ?? '—'}'),
-                        _row('التقييم', p['rating'] == null ? '—' : '${p['rating']}'),
-                      ]),
-                      const SizedBox(height: 14),
-                      _infoCard('المركبة', [
-                        _row('رقم اللوحة', '${vehicle?['plateNumber'] ?? p['vehiclePlate'] ?? '—'}'),
-                        _row('النوع', '${vehicle?['vehicleType']?['name'] ?? '—'}'),
-                        _row('الماركة', '${vehicle?['make'] ?? '—'}'),
-                        _row('الطراز', '${vehicle?['model'] ?? '—'}'),
-                      ]),
-                    ],
-                  ),
-      ),
+                        const SizedBox(height: 14),
+                        _infoCard(context.tr('driver.professional'), [
+                          _row(context.tr('driver.licenseNumber'), '${p['licenseNumber'] ?? '—'}'),
+                          _row(context.tr('driver.nationality'), '${p['nationality'] ?? '—'}'),
+                          _row(context.tr('driver.classification'), '${p['classification'] ?? '—'}'),
+                          _row(context.tr('driver.employmentType'), '${p['employmentType'] ?? '—'}'),
+                          _row(context.tr('driver.rating'), p['rating'] == null ? '—' : '${p['rating']}'),
+                        ]),
+                        const SizedBox(height: 14),
+                        _infoCard(context.tr('driver.vehicle'), [
+                          _row(context.tr('driver.plateNumber'), '${vehicle?['plateNumber'] ?? p['vehiclePlate'] ?? '—'}'),
+                          _row(context.tr('driver.vehicleType'), '${vehicle?['vehicleType']?['name'] ?? '—'}'),
+                          _row(context.tr('driver.make'), '${vehicle?['make'] ?? '—'}'),
+                          _row(context.tr('driver.model'), '${vehicle?['model'] ?? '—'}'),
+                        ]),
+                      ],
+                    ),
     );
   }
 

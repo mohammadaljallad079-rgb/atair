@@ -15,6 +15,7 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
   List<DriverDelivery> _history = [];
   bool _loading = true;
   String? _error;
+  bool _loadFailed = false;
 
   /// Forward-only status progression a driver is allowed to drive, mirroring
   /// the backend `DRIVER_TRANSITIONS` whitelist.
@@ -30,6 +31,7 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _loadFailed = false;
     });
     try {
       final active = await widget.auth.api.driverDeliveries();
@@ -43,7 +45,7 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = 'تعذّر تحميل المهمات');
+      if (mounted) setState(() => _loadFailed = true);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -68,38 +70,38 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl,
-      child: RefreshIndicator(
-        onRefresh: _load,
-        child: _loading
-            ? const LoadingView()
-            : _error != null
-                ? ErrorView(message: _error!, onRetry: _load)
-                : ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      const Text('المهمات الجارية', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                      const SizedBox(height: 10),
-                      if (_active.isEmpty)
-                        const Padding(padding: EdgeInsets.all(24), child: EmptyView(message: 'لا توجد مهمات جارية', icon: Icons.local_shipping_outlined))
-                      else
-                        ..._active.map((d) => _deliveryTile(d)),
-                      const SizedBox(height: 24),
-                      const Text('السجل', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                      const SizedBox(height: 10),
-                      if (_history.isEmpty)
-                        const Padding(padding: EdgeInsets.all(24), child: EmptyView(message: 'لا يوجد سجل بعد', icon: Icons.history))
-                      else
-                        ..._history.map((d) => _historyTile(d)),
-                      const SizedBox(height: 40),
-                    ],
-                  ),
-      ),
+    final rtl = context.isRtl;
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: _loading
+          ? const LoadingView()
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _load)
+              : _loadFailed
+                  ? ErrorView(message: context.tr('driver.loadDeliveriesFailed'), onRetry: _load)
+                  : ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        Text(context.tr('driver.activeTasks'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                        const SizedBox(height: 10),
+                        if (_active.isEmpty)
+                          Padding(padding: const EdgeInsets.all(24), child: EmptyView(message: context.tr('driver.noActiveTasks'), icon: Icons.local_shipping_outlined))
+                        else
+                          ..._active.map((d) => _deliveryTile(d, rtl)),
+                        const SizedBox(height: 24),
+                        Text(context.tr('driver.history'), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                        const SizedBox(height: 10),
+                        if (_history.isEmpty)
+                          Padding(padding: const EdgeInsets.all(24), child: EmptyView(message: context.tr('driver.noHistory'), icon: Icons.history))
+                        else
+                          ..._history.map((d) => _historyTile(d, rtl)),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
     );
   }
 
-  Widget _deliveryTile(DriverDelivery d) {
+  Widget _deliveryTile(DriverDelivery d, bool rtl) {
     final next = _nextStatus(d.status);
     return Card(
       child: Padding(
@@ -110,33 +112,33 @@ class _DeliveriesScreenState extends State<DeliveriesScreen> {
             Row(
               children: [
                 Expanded(child: Text(d.orderNumber, style: const TextStyle(fontWeight: FontWeight.w700))),
-                StatusPill(label: AtairFormat.status(d.status), color: statusColor(d.status)),
+                StatusPill(label: AtairFormat.status(d.status, rtl: rtl), color: statusColor(d.status)),
               ],
             ),
             const SizedBox(height: 8),
-            Text('من: ${d.pickupAddress}', style: const TextStyle(fontSize: 13)),
+            Text(context.tr('driver.from', {'value': d.pickupAddress}), style: const TextStyle(fontSize: 13)),
             const SizedBox(height: 4),
-            Text('إلى: ${d.dropoffAddress}', style: const TextStyle(fontSize: 13)),
+            Text(context.tr('driver.to', {'value': d.dropoffAddress}), style: const TextStyle(fontSize: 13)),
             const SizedBox(height: 12),
             if (next != null)
               FilledButton.icon(
                 onPressed: () => _advance(d),
                 icon: const Icon(Icons.arrow_forward),
-                label: Text('تحديث الحالة: ${AtairFormat.status(next)}'),
+                label: Text(context.tr('driver.updateStatus', {'value': AtairFormat.status(next, rtl: rtl)})),
               )
             else
-              const Center(child: Text('اكتملت المهمة', style: TextStyle(color: AtairTheme.textMuted))),
+              Center(child: Text(context.tr('driver.taskComplete'), style: const TextStyle(color: AtairTheme.textMuted))),
           ],
         ),
       ),
     );
   }
 
-  Widget _historyTile(DriverDelivery d) => Card(
+  Widget _historyTile(DriverDelivery d, bool rtl) => Card(
         child: ListTile(
           leading: Icon(Icons.check_circle_outline, color: statusColor(d.status)),
           title: Text(d.orderNumber, style: const TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text('${AtairFormat.status(d.status)} • ${AtairFormat.money(d.total, d.currency)}'),
+          subtitle: Text('${AtairFormat.status(d.status, rtl: rtl)} • ${AtairFormat.money(d.total, d.currency)}'),
         ),
       );
 }

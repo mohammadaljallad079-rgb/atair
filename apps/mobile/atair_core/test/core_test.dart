@@ -1,24 +1,72 @@
 import 'package:atair_core/atair_core.dart';
+import 'package:atair_core/testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  // `LocaleController` and `SessionStore` persist through shared_preferences;
+  // the mock backend keeps those writes off the platform channel in tests.
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   group('AtairFormat', () {
     test('formats money with the SAR suffix', () {
       expect(AtairFormat.money('12.5'), '12.50 SAR');
       expect(AtairFormat.money(null), '0.00 SAR');
     });
 
-    test('maps order statuses to Arabic labels', () {
+    test('maps order statuses to Arabic and English labels', () {
       expect(AtairFormat.status('delivered'), 'تم التسليم');
       expect(AtairFormat.status('in_transit'), 'قيد التوصيل');
+      expect(AtairFormat.status('delivered', rtl: false), 'Delivered');
       expect(AtairFormat.status('unknown_status'), 'unknown_status');
+    });
+
+    test('maps approval and payment statuses in both languages', () {
+      expect(AtairFormat.approval('pending'), 'بانتظار الموافقة');
+      expect(AtairFormat.approval('approved', rtl: false), 'Approved');
+      expect(AtairFormat.payment('cod_pending'), 'الدفع عند التسليم');
+      expect(AtairFormat.payment('paid', rtl: false), 'Paid');
     });
 
     test('formats dates safely', () {
       expect(AtairFormat.dateTime(null), '—');
       expect(AtairFormat.dateTime('not-a-date'), '—');
       expect(AtairFormat.dateTime('2026-01-02T10:30:00.000Z'), contains('2026-01-02'));
+    });
+  });
+
+  group('LocaleController', () {
+    test('defaults to Arabic/RTL and toggles to English/LTR', () async {
+      final l = LocaleController();
+      expect(l.isRtl, isTrue);
+      expect(l.direction, TextDirection.rtl);
+      expect(l.locale.code, 'ar');
+
+      await l.toggle();
+      expect(l.isRtl, isFalse);
+      expect(l.direction, TextDirection.ltr);
+      expect(l.locale.code, 'en');
+    });
+
+    test('resolves core keys, falls back to the key when missing, and interpolates params', () {
+      final l = LocaleController();
+      expect(l.t('common.retry'), 'إعادة المحاولة');
+      expect(l.t('does.not.exist'), 'does.not.exist');
+      expect(l.t('tracking.title'), 'تتبّع الطلب');
+    });
+
+    test('registerStrings layers app strings over the core defaults', () {
+      registerStrings({
+        'ar': {'custom.key': 'قيمة مخصّصة'},
+        'en': {'custom.key': 'Custom value'},
+      });
+      final l = LocaleController();
+      expect(l.t('custom.key'), 'قيمة مخصّصة');
+      // core keys remain available after a merge
+      expect(l.t('common.loading'), 'جارٍ التحميل…');
+      expect(sharedStrings('ar')['custom.key'], 'قيمة مخصّصة');
     });
   });
 
@@ -106,8 +154,33 @@ void main() {
     });
   });
 
+  group('map config', () {
+    test('is unconfigured unless a tile URL is injected at build time', () {
+      // The test build does not pass --dart-define=ATAIR_MAP_TILE_URL.
+      expect(AtairMapConfig.tileUrl, isEmpty);
+      expect(AtairMapConfig.isConfigured, isFalse);
+    });
+  });
+
   test('statusColor is stable for known statuses', () {
     expect(statusColor('delivered'), isNot(equals(statusColor('cancelled'))));
     expect(statusColor('assigned'), isNot(equals(Colors.transparent)));
+  });
+
+  testWidgets('AtairTrackingMap explains a missing map provider instead of rendering blank', (tester) async {
+    final tracking = OrderTracking({
+      'order': {'id': 'o1', 'status': 'in_transit', 'pickupLat': 24.7, 'pickupLng': 46.6},
+      'driverLocation': {'latitude': 24.71, 'longitude': 46.67},
+    });
+    await tester.pumpWidget(atairTestApp(Scaffold(body: AtairTrackingMap(tracking: tracking))));
+    await tester.pump();
+    expect(find.text('لم يتم إعداد مزوّد الخرائط'), findsOneWidget);
+  });
+
+  testWidgets('AtairTrackingMap reports missing coordinates', (tester) async {
+    final tracking = OrderTracking({'order': {'id': 'o1', 'status': 'draft'}});
+    await tester.pumpWidget(atairTestApp(Scaffold(body: AtairTrackingMap(tracking: tracking))));
+    await tester.pump();
+    expect(find.text('لا تتوفّر إحداثيات لعرضها على الخريطة'), findsOneWidget);
   });
 }

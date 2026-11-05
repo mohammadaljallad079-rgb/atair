@@ -1,10 +1,12 @@
 import 'package:atair_core/atair_core.dart';
 import 'package:flutter/material.dart';
 
+import 'i18n.dart';
 import 'screens/home_screen.dart';
-import 'screens/login_screen.dart';
+import 'screens/register_screen.dart';
 
 void main() {
+  registerCustomerStrings();
   runApp(const AtairCustomerApp());
 }
 
@@ -27,18 +29,24 @@ class _AtairCustomerAppState extends State<AtairCustomerApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'عَ الطاير — العملاء',
-      debugShowCheckedModeBanner: false,
-      theme: AtairTheme.light(),
-      home: AnimatedBuilder(
-        animation: _auth,
-        builder: (context, _) {
-          if (_auth.booting) return const LoadingView();
-          return _auth.isAuthenticated
-              ? HomeScreen(auth: _auth)
-              : CustomerLoginScreen(auth: _auth);
-        },
+    return AtairAppRoot(
+      auth: _auth,
+      titleKey: 'app.title',
+      subtitleKey: 'customer.subtitle',
+      builder: (context, auth) => HomeScreen(auth: auth),
+      loginFooter: (context) => Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(context.tr('customer.register.question'),
+              style: const TextStyle(color: AtairTheme.textMuted)),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => RegisterScreen(auth: _auth)),
+            ),
+            child: Text(context.tr('customer.register.action')),
+          ),
+        ],
       ),
     );
   }

@@ -1,9 +1,11 @@
 import 'package:atair_core/atair_core.dart';
 import 'package:flutter/material.dart';
 
+import 'i18n.dart';
 import 'screens/driver_shell.dart';
 
 void main() {
+  registerDriverStrings();
   runApp(const AtairDriverApp());
 }
 
@@ -26,25 +28,12 @@ class _AtairDriverAppState extends State<AtairDriverApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'عَ الطاير — السائق',
-      debugShowCheckedModeBanner: false,
-      theme: AtairTheme.light(),
-      home: AnimatedBuilder(
-        animation: _auth,
-        builder: (context, _) {
-          if (_auth.booting) return const LoadingView();
-          if (!_auth.isAuthenticated) {
-            return AtairLoginScreen(
-              auth: _auth,
-              appTitle: 'عَ الطاير',
-              subtitle: 'تطبيق السائق — استلم وأوصّل',
-              accent: AtairTheme.ink,
-            );
-          }
-          return DriverShell(auth: _auth);
-        },
-      ),
+    return AtairAppRoot(
+      auth: _auth,
+      titleKey: 'app.title',
+      subtitleKey: 'driver.subtitle',
+      accent: AtairTheme.ink,
+      builder: (context, auth) => DriverShell(auth: auth),
     );
   }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'l10n.dart';
 import 'theme.dart';
 
 /// Branded app bar with the ATAIR bird mark.
@@ -30,6 +31,26 @@ class AtairAppBar extends StatelessWidget implements PreferredSizeWidget {
   }
 }
 
+/// Small AR/EN switch placed in app bars so the language is reachable from
+/// every screen without a settings detour.
+class LanguageToggleButton extends StatelessWidget {
+  const LanguageToggleButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AtairL10n.maybeOf(context);
+    if (l10n == null) return const SizedBox.shrink();
+    return IconButton(
+      icon: Text(
+        l10n.isRtl ? 'EN' : 'ع',
+        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+      ),
+      tooltip: l10n.t('common.language'),
+      onPressed: l10n.toggle,
+    );
+  }
+}
+
 class _BirdMark extends StatelessWidget {
   const _BirdMark();
 
@@ -50,20 +71,24 @@ class _BirdMark extends StatelessWidget {
 
 /// Full-screen centered loading state.
 class LoadingView extends StatelessWidget {
-  const LoadingView({super.key, this.label = 'جارٍ التحميل…'});
-  final String label;
+  const LoadingView({super.key, this.label});
+  final String? label;
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(color: AtairTheme.brand),
-            const SizedBox(height: 12),
-            Text(label, style: const TextStyle(color: AtairTheme.textMuted)),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final l10n = AtairL10n.maybeOf(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(color: AtairTheme.brand),
+          const SizedBox(height: 12),
+          Text(label ?? l10n?.t('common.loading') ?? 'Loading…',
+              style: const TextStyle(color: AtairTheme.textMuted)),
+        ],
+      ),
+    );
+  }
 }
 
 /// Error state with a retry action.
@@ -73,42 +98,49 @@ class ErrorView extends StatelessWidget {
   final VoidCallback? onRetry;
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.error_outline, size: 44, color: Colors.redAccent),
-              const SizedBox(height: 12),
-              Text(message, textAlign: TextAlign.center),
-              if (onRetry != null) ...[
-                const SizedBox(height: 16),
-                OutlinedButton(onPressed: onRetry, child: const Text('إعادة المحاولة')),
-              ],
+  Widget build(BuildContext context) {
+    final l10n = AtairL10n.maybeOf(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 44, color: Colors.redAccent),
+            const SizedBox(height: 12),
+            Text(message, textAlign: TextAlign.center),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton(onPressed: onRetry, child: Text(l10n?.t('common.retry') ?? 'Retry')),
             ],
-          ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 }
 
 /// Empty state placeholder.
 class EmptyView extends StatelessWidget {
-  const EmptyView({super.key, this.message = 'لا توجد بيانات', this.icon = Icons.inbox_outlined});
-  final String message;
+  const EmptyView({super.key, this.message, this.icon = Icons.inbox_outlined});
+  final String? message;
   final IconData icon;
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 46, color: const Color(0xFFCBD5E1)),
-            const SizedBox(height: 10),
-            Text(message, style: const TextStyle(color: AtairTheme.textMuted)),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final l10n = AtairL10n.maybeOf(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 46, color: const Color(0xFFCBD5E1)),
+          const SizedBox(height: 10),
+          Text(message ?? l10n?.t('common.noData') ?? 'No data',
+              style: const TextStyle(color: AtairTheme.textMuted)),
+        ],
+      ),
+    );
+  }
 }
 
 /// Colored status pill matching the web `StatusBadge` palette.
