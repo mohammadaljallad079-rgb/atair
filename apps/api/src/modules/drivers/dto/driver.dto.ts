@@ -12,6 +12,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -94,6 +95,30 @@ export class CreateDriverDto {
   @ApiPropertyOptional()
   @IsOptional() @IsDateString()
   licenseExpiry?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(60)
+  nationality?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsDateString()
+  dateOfBirth?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional() @IsString() @MaxLength(400)
+  address?: string;
+
+  @ApiPropertyOptional({ description: 'Operating service zone' })
+  @IsOptional() @IsUUID()
+  zoneId?: string;
+
+  @ApiPropertyOptional({ enum: ['full_time', 'part_time', 'freelance', 'contract'] })
+  @IsOptional() @IsIn(['full_time', 'part_time', 'freelance', 'contract'])
+  employmentType?: string;
+
+  @ApiPropertyOptional({ enum: ['economy', 'express', 'premium', 'cargo'] })
+  @IsOptional() @IsIn(['economy', 'express', 'premium', 'cargo'])
+  classification?: string;
 
   @ApiPropertyOptional({ description: 'Vehicle type for the driver vehicle' })
   @IsOptional() @IsString()

@@ -299,6 +299,12 @@ model Driver {
   nationalIdExpiry   DateTime?                @map("national_id_expiry")
   licenseNumber      String?                  @map("license_number")
   licenseExpiry      DateTime?                @map("license_expiry")
+  nationality        String?
+  dateOfBirth        DateTime?                @map("date_of_birth")
+  address            String?
+  zoneId             String?                  @map("zone_id") @db.Uuid
+  employmentType     String?                  @map("employment_type")
+  classification     String?
   suspendedReason    String?                  @map("suspended_reason")
   lastLocationAt     DateTime?                @map("last_location_at")
   createdAt          DateTime                 @default(now()) @map("created_at")
