@@ -5,7 +5,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useResourceList } from '@/lib/use-resource-list';
 import { useI18n } from '@/i18n/provider';
 import { formatMoney, formatNumber } from '@/lib/format';
-import { DRIVER_STATUSES, VERIFICATION_STATUSES } from '@/lib/constants';
+import { DRIVER_STATUSES, VERIFICATION_STATUSES, APPROVAL_STATUSES } from '@/lib/constants';
 import { PageHeader, Card } from '@/components/ui/primitives';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Pagination } from '@/components/ui/pagination';
@@ -26,6 +26,7 @@ export default function DriversPage() {
     { key: 'phone', header: t('drivers.phone'), render: (r) => <span dir="ltr">{r.phone}</span> },
     { key: 'status', header: t('common.status'), render: (r) => <StatusBadge status={r.status} /> },
     { key: 'verificationStatus', header: t('drivers.verification'), render: (r) => <StatusBadge status={r.verificationStatus} /> },
+    { key: 'approvalStatus', header: t('drivers.approvalStatus'), render: (r) => <StatusBadge status={r.approvalStatus} /> },
     { key: 'isAvailable', header: t('drivers.availability'), render: (r) => (r.isAvailable ? t('common.yes') : t('common.no')) },
     { key: 'rating', header: t('drivers.rating'), align: 'end', render: (r) => (r.rating != null ? formatNumber(r.rating, locale) : '—') },
     { key: 'completedOrders', header: t('drivers.completed'), align: 'end', render: (r) => formatNumber(r.completedOrders, locale) },
@@ -58,6 +59,15 @@ export default function DriversPage() {
           >
             <option value="">{t('drivers.verification')}: {t('common.all')}</option>
             {VERIFICATION_STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
+          </Select>
+          <Select
+            value={list.filters.approvalStatus ?? ''}
+            onChange={(e) => list.setFilter('approvalStatus', e.target.value || undefined)}
+            className="w-full sm:w-44"
+            aria-label={t('drivers.approvalStatus')}
+          >
+            <option value="">{t('drivers.approvalStatus')}: {t('common.all')}</option>
+            {APPROVAL_STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
           </Select>
         </FilterBar>
 

@@ -4,7 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Errors } from '../../common/errors/app-error';
+import { AppError, Errors } from '../../common/errors/app-error';
 import { JwtPayload } from './strategies/jwt.strategy';
 
 export interface IssuedTokens {
@@ -57,6 +57,38 @@ export class AuthService {
   }
 
   /**
+   * Blocks login for driver/merchant principals whose account has not been
+   * approved by an administrator. Staff and platform admins are unaffected.
+   * A pending account gets `ACCOUNT_PENDING_APPROVAL`; a rejected/suspended one
+   * gets `ACCOUNT_SUSPENDED` — both distinct, both safe (no enumeration leak
+   * because the password was already verified).
+   */
+  private async assertAccountEligible(userId: string, tenantId: string) {
+    const [driver, merchantLinks] = await Promise.all([
+      this.prisma.driver.findFirst({ where: { userId, tenantId }, select: { approvalStatus: true } }),
+      this.prisma.merchantUser.findMany({
+        where: { userId, merchant: { tenantId } },
+        select: { merchant: { select: { approvalStatus: true } } },
+      }),
+    ]);
+
+    const statuses: string[] = [];
+    if (driver) statuses.push(driver.approvalStatus);
+    for (const link of merchantLinks) statuses.push(link.merchant.approvalStatus);
+    if (statuses.length === 0) return;
+
+    if (statuses.every((s) => s === 'approved')) return;
+    if (statuses.some((s) => s === 'pending')) {
+      throw new AppError(
+        'ACCOUNT_PENDING_APPROVAL',
+        'Your account is awaiting administrator approval',
+        403,
+      );
+    }
+    throw new AppError('ACCOUNT_SUSPENDED', 'Account is suspended or rejected', 403);
+  }
+
+  /**
    * Full principal for the client. The access token only carries identifiers and
    * authorization, so the display fields are loaded fresh from the database
    * (same shape as the login response).
@@ -83,10 +115,15 @@ export class AuthService {
 
   async login(identifier: string, password: string, meta: RequestMeta, tenantSlug?: string) {
     const isEmail = identifier.includes('@');
+    const normalized = isEmail ? identifier.toLowerCase() : identifier;
 
     const candidates = await this.prisma.user.findMany({
       where: {
-        OR: [{ email: isEmail ? identifier.toLowerCase() : undefined }, { phone: isEmail ? undefined : identifier }],
+        OR: [
+          { email: isEmail ? normalized : undefined },
+          { phone: isEmail ? undefined : normalized },
+          { username: isEmail ? undefined : normalized },
+        ],
         ...(tenantSlug ? { tenant: { slug: tenantSlug } } : {}),
       },
       include: { tenant: true },
@@ -144,6 +181,8 @@ export class AuthService {
       where: { id: user.id },
       data: { failedLoginAttempts: 0, lockedUntil: null, lastLoginAt: new Date() },
     });
+
+    await this.assertAccountEligible(user.id, user.tenantId);
 
     const auth = await this.resolveAuthorization(user.id);
     const tokens = await this.issueTokens(user.id, user.tenantId, auth, meta);
@@ -220,6 +259,7 @@ export class AuthService {
     if (session.user.status === 'suspended' || session.user.status === 'locked') {
       throw Errors.accountSuspended();
     }
+    await this.assertAccountEligible(session.userId, session.user.tenantId);
 
     // Rotate: revoke the presented refresh token, issue a fresh session.
     await this.prisma.session.update({

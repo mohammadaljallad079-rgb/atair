@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useI18n } from '@/i18n/provider';
 import { Section, SectionHeading, Card, CheckItem, Icon } from '@/components/ui/primitives';
+import { RegistrationForm } from '@/components/forms/registration-form';
 import { MERCHANT_URL } from '@/components/layout/navbar';
 
 export default function BusinessPage() {
@@ -56,6 +57,11 @@ export default function BusinessPage() {
       </Section>
 
       <Section muted>
+        <SectionHeading title={t('register.merchantTitle')} subtitle={t('register.approvalNote')} center />
+        <RegistrationForm kind="merchant" />
+      </Section>
+
+      <Section>
         <SectionHeading title={t('home.cta.title')} subtitle={t('home.cta.body')} center />
         <div className="flex justify-center">
           <Link href="/contact" className="rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-700">

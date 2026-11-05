@@ -68,6 +68,22 @@ describe('UsersService privilege-escalation guard', () => {
     // Only resolveRoles ran; assertCanGrant short-circuits for platform admins.
     expect(prisma.role.findMany).toHaveBeenCalledTimes(1);
   });
+
+  it('rejects a duplicate username before creating the user', async () => {
+    const { service, prisma } = buildService();
+    prisma.role.findMany.mockResolvedValueOnce([{ id: 'r-ops' }]);
+    // assertIdentifierAvailable() probes email/phone/username via findFirst.
+    prisma.user.findFirst = jest.fn().mockResolvedValue({ id: 'existing' });
+    const err = await service
+      .create(
+        tenantId,
+        { fullName: 'X', username: 'salem', password: 'password1', roleSlugs: ['operations_manager'] },
+        { userId: 'actor', permissions: [], isPlatformAdmin: true },
+      )
+      .catch((e) => e);
+    expect(err).toMatchObject({ code: 'USERNAME_TAKEN' });
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
 });
 
 /**

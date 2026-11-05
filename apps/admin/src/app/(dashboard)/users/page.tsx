@@ -29,6 +29,7 @@ export default function UsersPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [roleSlugs, setRoleSlugs] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -45,10 +46,10 @@ export default function UsersPage() {
   async function doCreate() {
     setBusy(true);
     try {
-      await endpoints.createUser({ fullName, email: email || undefined, password, roleSlugs });
+      await endpoints.createUser({ fullName, email: email || undefined, username: username || undefined, password, roleSlugs });
       notify(t('common.save'));
       setCreateOpen(false);
-      setFullName(''); setEmail(''); setPassword(''); setRoleSlugs([]);
+      setFullName(''); setEmail(''); setUsername(''); setPassword(''); setRoleSlugs([]);
       list.reload();
     } catch (err) {
       notify(err instanceof ApiError ? err.message : t('common.error'), 'error');
@@ -120,6 +121,7 @@ export default function UsersPage() {
   const columns: Column<StaffUser>[] = [
     { key: 'fullName', header: t('users.name'), render: (r) => <span className="font-medium">{r.fullName}</span> },
     { key: 'email', header: t('users.email'), render: (r) => r.email ?? '—' },
+    { key: 'username', header: t('users.username'), render: (r) => (r.username ? <span dir="ltr">{r.username}</span> : '—') },
     { key: 'roles', header: t('users.roles'), render: (r) => r.roles.map((s) => t(`role.${s}`)).join('، ') || '—' },
     { key: 'status', header: t('common.status'), render: (r) => <StatusBadge status={r.status} /> },
     { key: 'lastLoginAt', header: t('users.lastLogin'), render: (r) => (r.lastLoginAt ? formatDateTime(r.lastLoginAt, locale) : '—') },
@@ -209,6 +211,9 @@ export default function UsersPage() {
           </Field>
           <Field label={t('users.email')}>
             <TextInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" />
+          </Field>
+          <Field label={t('users.username')} hint={t('users.usernameHint')}>
+            <TextInput value={username} onChange={(e) => setUsername(e.target.value)} dir="ltr" />
           </Field>
           <Field label={t('users.password')} required>
             <TextInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} dir="ltr" />

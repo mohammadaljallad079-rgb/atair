@@ -1,11 +1,12 @@
 import { Body, Controller, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsBoolean, IsOptional, IsString } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { DriversService } from './drivers.service';
 import {
   CreateDriverDto,
   DriverQueryDto,
+  RejectDriverDto,
   ReviewDocumentDto,
   UpdateDriverDto,
   UpdateDriverLocationDto,
@@ -49,14 +50,29 @@ export class DriversController {
 
   @Post()
   @RequirePermissions([PERMISSIONS.drivers_create])
+  @ApiOperation({ summary: 'Create a driver (optionally with a login account and documents)' })
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateDriverDto, @Ip() ip: string) {
-    return this.drivers.create(user.tenantId, dto, { userId: user.userId, ip });
+    return this.drivers.create(user.tenantId, dto, { userId: user.userId, ip }, { source: 'admin' });
   }
 
   @Patch(':id')
   @RequirePermissions([PERMISSIONS.drivers_update])
   update(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateDriverDto, @Ip() ip: string) {
     return this.drivers.update(user.tenantId, id, dto, { userId: user.userId, ip });
+  }
+
+  @Post(':id/approve')
+  @RequirePermissions([PERMISSIONS.drivers_verify])
+  @ApiOperation({ summary: 'Approve a pending driver and activate the login account' })
+  approve(@CurrentUser() user: AuthUser, @Param('id') id: string, @Ip() ip: string) {
+    return this.drivers.approve(user.tenantId, id, { userId: user.userId, ip });
+  }
+
+  @Post(':id/reject')
+  @RequirePermissions([PERMISSIONS.drivers_verify])
+  @ApiOperation({ summary: 'Reject a pending driver' })
+  reject(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: RejectDriverDto, @Ip() ip: string) {
+    return this.drivers.reject(user.tenantId, id, dto, { userId: user.userId, ip });
   }
 
   @Post(':id/suspend')

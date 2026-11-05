@@ -5,7 +5,7 @@ import { endpoints } from '@/lib/endpoints';
 import { useResourceList } from '@/lib/use-resource-list';
 import { useI18n } from '@/i18n/provider';
 import { formatDateTime } from '@/lib/format';
-import { MERCHANT_STATUSES } from '@/lib/constants';
+import { MERCHANT_STATUSES, APPROVAL_STATUSES } from '@/lib/constants';
 import { PageHeader, Card } from '@/components/ui/primitives';
 import { DataTable, Column } from '@/components/ui/data-table';
 import { Pagination } from '@/components/ui/pagination';
@@ -26,6 +26,7 @@ export default function MerchantsPage() {
     { key: 'category', header: t('merchants.category'), render: (r) => r.category ?? '—' },
     { key: 'phone', header: t('customers.phone'), render: (r) => (r.phone ? <span dir="ltr">{r.phone}</span> : '—') },
     { key: 'status', header: t('common.status'), render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'approvalStatus', header: t('merchants.approvalStatus'), render: (r) => <StatusBadge status={r.approvalStatus} /> },
     { key: 'commissionRate', header: t('merchants.commission'), align: 'end', render: (r) => (r.commissionRate != null ? `${Number(r.commissionRate).toFixed(2)}%` : '—') },
     { key: 'createdAt', header: t('common.createdAt'), render: (r) => formatDateTime(r.createdAt, locale) },
   ];
@@ -46,6 +47,15 @@ export default function MerchantsPage() {
           >
             <option value="">{t('common.status')}: {t('common.all')}</option>
             {MERCHANT_STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
+          </Select>
+          <Select
+            value={list.filters.approvalStatus ?? ''}
+            onChange={(e) => list.setFilter('approvalStatus', e.target.value || undefined)}
+            className="w-full sm:w-44"
+            aria-label={t('merchants.approvalStatus')}
+          >
+            <option value="">{t('merchants.approvalStatus')}: {t('common.all')}</option>
+            {APPROVAL_STATUSES.map((s) => <option key={s} value={s}>{t(`status.${s}`)}</option>)}
           </Select>
         </FilterBar>
         <DataTable

@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Ip, Param, Patch, Post, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, PartialType } from '@nestjs/swagger';
-import { IsArray, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 import { PERMISSIONS } from '@atair/db';
 import { CreateUserDto, UpdateUserDto, UpsertRoleDto, UsersService } from './users.service';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -11,6 +11,7 @@ class CreateUserBody implements CreateUserDto {
   @IsString() @IsNotEmpty() fullName!: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() @Matches(/^[a-zA-Z0-9._-]{3,40}$/) username?: string;
   @IsString() @MinLength(8) password!: string;
   @IsArray() roleSlugs!: string[];
   @IsOptional() @IsString() branchId?: string;
@@ -20,6 +21,7 @@ class UpdateUserBody implements UpdateUserDto {
   @IsOptional() @IsString() fullName?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() @Matches(/^[a-zA-Z0-9._-]{3,40}$/) username?: string;
   @IsOptional() @IsIn(['active', 'invited', 'suspended', 'locked']) status?: any;
   @IsOptional() @IsArray() roleSlugs?: string[];
 }

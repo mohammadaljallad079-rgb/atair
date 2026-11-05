@@ -13,6 +13,17 @@ export interface CreateVehicleDto {
   color?: string;
 }
 
+export interface CreateVehicleTypeDto {
+  name: string;
+  slug?: string;
+  capacityKg?: number;
+  maxWeightKg?: number;
+  icon?: string;
+  isActive?: boolean;
+}
+
+export type UpdateVehicleTypeDto = Partial<CreateVehicleTypeDto>;
+
 export interface VehicleQueryDto extends PaginationQueryDto {
   status?: string;
 }
@@ -29,6 +40,59 @@ export class VehiclesService {
 
   listTypes() {
     return this.prisma.vehicleType.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+  }
+
+  /** All vehicle types for the management screen (active + inactive). */
+  listAllTypes(tenantId: string) {
+    return this.prisma.vehicleType.findMany({
+      where: { OR: [{ tenantId }, { tenantId: null }] },
+      orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+    });
+  }
+
+  private slugifyType(name: string): string {
+    const base = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0600-\u06FF]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return base || `type-${Date.now().toString(36)}`;
+  }
+
+  async createType(tenantId: string, dto: CreateVehicleTypeDto, actor: { userId: string; ip?: string }) {
+    const slug = dto.slug ?? this.slugifyType(dto.name);
+    const existing = await this.prisma.vehicleType.findFirst({ where: { tenantId, slug } });
+    if (existing) throw Errors.conflict('VEHICLE_TYPE_EXISTS', 'A vehicle type with this slug already exists');
+    const type = await this.prisma.vehicleType.create({
+      data: {
+        tenantId,
+        name: dto.name,
+        slug,
+        capacityKg: dto.capacityKg,
+        maxWeightKg: dto.maxWeightKg,
+        icon: dto.icon,
+        isActive: dto.isActive ?? true,
+      },
+    });
+    await this.audit.log({ tenantId, userId: actor.userId, action: 'vehicle_type.create', entity: 'vehicle_type', entityId: type.id, after: type, ip: actor.ip });
+    return type;
+  }
+
+  async updateType(tenantId: string, id: string, dto: UpdateVehicleTypeDto, actor: { userId: string; ip?: string }) {
+    const before = await this.prisma.vehicleType.findFirst({ where: { id, OR: [{ tenantId }, { tenantId: null }] } });
+    if (!before) throw Errors.notFound('vehicle_type');
+    const type = await this.prisma.vehicleType.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        capacityKg: dto.capacityKg,
+        maxWeightKg: dto.maxWeightKg,
+        icon: dto.icon,
+        isActive: dto.isActive,
+      },
+    });
+    await this.audit.log({ tenantId, userId: actor.userId, action: 'vehicle_type.update', entity: 'vehicle_type', entityId: id, before, after: type, ip: actor.ip });
+    return type;
   }
 
   async list(tenantId: string, q: VehicleQueryDto) {
