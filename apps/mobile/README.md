@@ -19,12 +19,49 @@ place to fix API/session behaviour:
   in-memory access token, and refreshes it **once** (single-flight) before
   retrying a 401. Mirrors the web clients; the refresh token is single-use and
   rotated server-side.
-- `SessionStore` — refresh token + last-known user in `shared_preferences`; the
-  access token lives in memory only.
+- `SessionStore` — refresh token in `flutter_secure_storage` (Android Keystore)
+  and the last-known user in `shared_preferences`; the access token lives in
+  memory only.
 - `AuthController` — `bootstrap()` / `login()` / `logout()` and a client-side
   role gate for a clear error (the backend boundary guards stay authoritative).
+- `LocaleController` + `context.tr()` — ar/en dictionaries with a persisted
+  choice; direction follows the locale (ar → RTL, en → LTR). Each app layers
+  its own keys over the core defaults via `registerStrings()`.
+- `AtairAppRoot` — the shared `MaterialApp` root (locale scope, RTL/LTR,
+  boot spinner, login gate); an app passes its authenticated shell via
+  `builder:`.
+- `AtairTrackingMap` — a `flutter_map` view that fits pickup/dropoff/driver
+  points and degrades to an explanatory message when no tile provider is
+  configured.
 - `AtairApi` — typed endpoint facade grouped by principal.
 - `AtairTheme`, `AtairFormat`, `AtairLoginScreen`, shared widgets.
+
+## Localization
+
+All user-facing text is resolved through `context.tr('some.key')`; the ar/en
+dictionaries live in `atair_core/lib/src/l10n.dart` plus each app's
+`lib/i18n.dart`. Register app strings in `main()` before `runApp`:
+
+```dart
+void main() {
+  registerDriverStrings();
+  runApp(const AtairDriverApp());
+}
+```
+
+The login screen (and every shell) exposes a language toggle; the choice is
+persisted and the layout direction flips with it.
+
+## Maps
+
+`AtairMapConfig` reads the tile URL from a build-time define. Without it the
+tracking screen still shows addresses and status — it just explains that no map
+provider is configured, instead of rendering a broken map.
+
+```
+--dart-define=ATAIR_MAP_TILE_URL=https://tile.example.com/{z}/{x}/{y}.png
+```
+
 
 ## Configuration
 
