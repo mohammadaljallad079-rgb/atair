@@ -35,3 +35,10 @@ coverage/
 # Uploads (local storage)
 uploads/
 storage/
+
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+apps/mobile/**/build/
