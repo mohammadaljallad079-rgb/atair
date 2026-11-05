@@ -9,6 +9,7 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - `apps/customer` — Customer Application: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3003**. Consumes only `/api/v1/customer/*` (plus `/auth/*`); a pure customer principal is blocked from tenant-wide routes by `CustomerBoundaryGuard`. Same-origin by default: `next.config.mjs` rewrites `/api/:path*` to `API_PROXY_TARGET` (default `http://localhost:3000`).
 - `apps/web` — Public website (marketing) + public order tracking: Next.js 14 App Router + TS + Tailwind, RTL Arabic (LTR English), dev/start port **3004**. Fully anonymous — no auth, no session, no tokens. Consumes only `/api/v1/public/*` (`public-site` module): branding/content settings, active service areas, secure tracking by code, and a contact form that persists as a support ticket. Same-origin rewrite to `API_PROXY_TARGET` like the other apps. `robots.ts` + `sitemap.ts` live in `src/app/`.
 - `packages/db` — Prisma schema, migrations, seed, and shared `@atair/db` package (exports `PrismaClient` + `PERMISSIONS`).
+- `apps/mobile` — Flutter Android platform (NOT an npm workspace): `atair_core` (shared library) + `atair_customer`, `atair_driver`, `atair_merchant`. Each app is Arabic-first (RTL) and talks only to its own API surface (`/api/v1/customer/*`, `/driver/*`, `/merchant/*`) via the shared `AtairApi` facade; role gate enforced client-side by `AuthController.requiredRoles` (backend boundary guards stay authoritative). See `apps/mobile/README.md`.
 
 ## Commands (run from repo root)
 - Install: `npm install`
@@ -19,6 +20,7 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - API dev: `npm run api:dev` | Build: `npm run api:build`
 - Typecheck (both apps): `npm run typecheck` | Lint (both apps): `npm run lint`
 - API tests: `npm run api:test` | Admin tests: `npm run -w @atair/admin test` | Merchant tests: `npm run -w @atair/merchant test` | Customer tests: `npm run -w @atair/customer test` | Web tests: `npm run -w @atair/web test`
+- Mobile (Flutter, from each app dir): `flutter pub get && flutter analyze && flutter test`. Release APK: `flutter build apk --release --dart-define=ATAIR_API_BASE=https://admin.sumu-app.store/api/v1`. Requires **JDK 17** (`flutter config --jdk-dir=<jdk17>`); JDK 21 breaks the Android build with a `JdkImageTransform`/`jlink` error.
 - Admin dev: `npm run admin:dev` | Admin build: `npm run admin:build`
 - Merchant dev: `npm run merchant:dev` | Merchant build: `npm run merchant:build`
 - Customer dev: `npm run customer:dev` | Customer build: `npm run customer:build`
@@ -53,10 +55,16 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - `src/lib/api.ts` is a minimal fetch client with **no** credentials/refresh logic (unlike the other apps). Tracking code lives in the URL (`/track?code=...`) so it is shareable; `useSearchParams` is wrapped in `<Suspense>` (Next 14 requirement).
 - Default website content is seeded idempotently by `seedWebsiteContent()` in `packages/db/prisma/seed.ts` (never overwrites existing rows). Edit keys from the Admin Control Center → Settings (generic key/value editor).
 
+## Mobile platform (apps/mobile)
+- Shared `atair_core` holds `ApiClient` (unwraps the `{success,data,meta?}` envelope, keeps the access token **in memory only**, single-flight refresh then **one** retry on 401), `SessionStore` (refresh token + last-known user in `shared_preferences`), `AuthController` (`bootstrap`/`login`/`logout`, `requiredRoles` client-side gate), and `AtairApi` (typed endpoint facade grouped by principal).
+- Each app constructs `AuthController` with its own role list: customer `['customer']`, driver `['driver']`, merchant `['merchant_owner','merchant']`. The gate only produces a clear message — the backend `*BoundaryGuard` remains the security boundary.
+- `ATAIR_API_BASE` is injected with `--dart-define` (defaults to the production API). `ATAIR_TENANT_SLUG` is **optional** — only send it when an identifier exists in more than one tenant, otherwise the server filters the account out.
+- Driver status progression in the app mirrors the backend `DRIVER_TRANSITIONS` whitelist (forward-only); never send an arbitrary target status.
+
 ## API conventions
 - Global prefix `/api`, URI versioning (default `v1`) → routes are `/api/v1/...`. Swagger at `/api/docs`.
 - Response envelope: success `{ success:true, data, meta? }`; errors `{ success:false, error:{ code, message, details? } }` (see `common/errors/app-error.ts`).
-- Global providers (in `app.module.ts`): ThrottlerGuard → JwtAuthGuard → MerchantBoundaryGuard → CustomerBoundaryGuard → PermissionsGuard; Transform + Audit interceptors; AllExceptionsFilter.
+- Global providers (in `app.module.ts`): ThrottlerGuard → JwtAuthGuard → MerchantBoundaryGuard → CustomerBoundaryGuard → DriverBoundaryGuard → PermissionsGuard; Transform + Audit interceptors; AllExceptionsFilter.
 - Tenant comes from the signed JWT (`AuthUser.tenantId`), never from client input. All queries must be tenant-scoped.
 - `@Public()` bypasses auth (login/refresh/health). `@RequirePermissions([...])` enforces RBAC; platform admins bypass.
 - DTOs use class-validator + `@nestjs/swagger`. ValidationPipe is `whitelist + forbidNonWhitelisted`, so unknown body fields are rejected.

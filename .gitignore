@@ -42,3 +42,6 @@ storage/
 .flutter-plugins-dependencies
 *.iml
 apps/mobile/**/build/
+
+# Local deploy artifacts (bundles, APKs, patches)
+dist-mobile/
