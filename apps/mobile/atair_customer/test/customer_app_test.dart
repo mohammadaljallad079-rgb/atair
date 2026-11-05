@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:atair_customer/screens/login_screen.dart';
+import 'package:atair_customer/screens/notifications_screen.dart';
 import 'package:atair_customer/screens/register_screen.dart';
 
 void main() {
@@ -28,5 +29,13 @@ void main() {
     await tester.pump();
 
     expect(find.text('الاسم ورقم الجوال مطلوبان'), findsOneWidget);
+  });
+
+  testWidgets('notifications screen renders its empty state without a backend', (tester) async {
+    final auth = AuthController(requiredRoles: const ['customer']);
+    await tester.pumpWidget(MaterialApp(home: CustomerNotificationsScreen(auth: auth)));
+    await tester.pump();
+
+    expect(find.text('الإشعارات'), findsOneWidget);
   });
 }

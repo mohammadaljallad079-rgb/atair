@@ -195,6 +195,9 @@ const ar: Dict = {
   'register.approvalNote': 'سيُراجع طلبك من قبل الإدارة قبل تفعيل الحساب.',
   'register.successTitle': 'تم استلام طلبك',
   'register.successBody': 'طلبك الآن بانتظار موافقة الإدارة. سنتواصل معك عند اعتماده.',
+  'register.customerTitle': 'التسجيل كعميل',
+  'register.customerBody': 'أنشئ حسابك في تطبيق العملاء لطلب التوصيل وتتبّع شحناتك لحظيًا.',
+  'register.customerCta': 'افتح تطبيق العملاء',
 
   // Legal
   'legal.title': 'الشروط والخصوصية',
@@ -399,6 +402,9 @@ const en: Dict = {
   'register.approvalNote': 'Your application is reviewed by an administrator before the account is activated.',
   'register.successTitle': 'Application received',
   'register.successBody': 'Your application is now awaiting administrator approval. We will contact you once it is approved.',
+  'register.customerTitle': 'Sign up as a customer',
+  'register.customerBody': 'Create your customer app account to place delivery orders and track shipments live.',
+  'register.customerCta': 'Open the customer app',
 
   'legal.title': 'Terms & privacy',
   'legal.subtitle': 'A summary of the terms and privacy for using the Al-Tayer platform.',

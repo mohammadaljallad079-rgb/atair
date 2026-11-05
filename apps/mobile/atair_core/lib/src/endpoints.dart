@@ -73,6 +73,27 @@ class AtairApi {
 
   Future<void> customerMarkNotificationRead(String id) => client.post('/customer/notifications/$id/read');
 
+  Future<Map<String, dynamic>> customerUpdateProfile(Map<String, dynamic> body) async =>
+      (await client.patch('/customer/profile', body: body) as Map).cast<String, dynamic>();
+
+  Future<List<CustomerAddress>> customerAddresses() async {
+    final res = await client.get('/customer/addresses');
+    final list = res is Map ? res['items'] ?? res : res;
+    return ((list as List?) ?? []).map((e) => CustomerAddress((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  Future<CustomerAddress> customerAddAddress(Map<String, dynamic> body) async =>
+      CustomerAddress((await client.post('/customer/addresses', body: body) as Map).cast<String, dynamic>());
+
+  Future<void> customerDeleteAddress(String id) => client.delete('/customer/addresses/$id');
+
+  /// Live tracking snapshot for one of the customer's own orders.
+  ///
+  /// Returns only what the backend actually recorded — never a simulated
+  /// driver position.
+  Future<OrderTracking> customerOrderTracking(String id) async =>
+      OrderTracking((await client.get('/customer/orders/$id/tracking') as Map).cast<String, dynamic>());
+
   // ------------------------------------------------------------------ driver
 
   Future<Map<String, dynamic>> driverMe() async =>
@@ -80,6 +101,9 @@ class AtairApi {
 
   Future<Map<String, dynamic>> driverProfile() async =>
       (await client.get('/driver/profile') as Map).cast<String, dynamic>();
+
+  Future<Map<String, dynamic>> driverUpdateProfile(Map<String, dynamic> body) async =>
+      (await client.patch('/driver/profile', body: body) as Map).cast<String, dynamic>();
 
   Future<void> driverSetAvailability(bool isAvailable) =>
       client.patch('/driver/availability', body: {'isAvailable': isAvailable});
@@ -135,8 +159,8 @@ class AtairApi {
   Future<Map<String, dynamic>> merchantContext() async =>
       (await client.get('/merchant/context') as Map).cast<String, dynamic>();
 
-  Future<Map<String, dynamic>> merchantDashboard() async =>
-      (await client.get('/merchant/dashboard') as Map).cast<String, dynamic>();
+  Future<MerchantDashboard> merchantDashboard() async =>
+      MerchantDashboard((await client.get('/merchant/dashboard') as Map).cast<String, dynamic>());
 
   Future<List<OrderSummary>> merchantOrders({int page = 1, int pageSize = 20, String? status}) async {
     final res = await client.get('/merchant/orders', query: {'page': page, 'pageSize': pageSize, if (status != null) 'status': status});
@@ -146,6 +170,32 @@ class AtairApi {
 
   Future<OrderSummary> merchantOrder(String id) async =>
       OrderSummary((await client.get('/merchant/orders/$id') as Map).cast<String, dynamic>());
+
+  Future<List<Map<String, dynamic>>> merchantOrderTimeline(String id) async {
+    final res = await client.get('/merchant/orders/$id/timeline');
+    final list = res is Map ? res['items'] ?? res['timeline'] ?? res : res;
+    return ((list as List?) ?? []).map((e) => (e as Map).cast<String, dynamic>()).toList();
+  }
+
+  Future<Map<String, dynamic>> merchantQuote(Map<String, dynamic> body) async =>
+      (await client.post('/merchant/orders/quote', body: body) as Map).cast<String, dynamic>();
+
+  Future<OrderSummary> merchantCreateOrder(Map<String, dynamic> body) async =>
+      OrderSummary((await client.post('/merchant/orders', body: body) as Map).cast<String, dynamic>());
+
+  Future<void> merchantCancelOrder(String id, String? reason) =>
+      client.post('/merchant/orders/$id/cancel', body: {'reason': reason});
+
+  Future<List<NotificationItem>> merchantNotifications() async {
+    final res = await client.get('/merchant/notifications');
+    final list = res is Map ? res['items'] ?? res : res;
+    return ((list as List?) ?? []).map((e) => NotificationItem((e as Map).cast<String, dynamic>())).toList();
+  }
+
+  Future<void> merchantMarkNotificationRead(String id) => client.post('/merchant/notifications/$id/read');
+
+  Future<Map<String, dynamic>> merchantUpdateProfile(Map<String, dynamic> body) async =>
+      (await client.patch('/merchant/profile', body: body) as Map).cast<String, dynamic>();
 
   Future<Map<String, dynamic>> merchantProfile() async =>
       (await client.get('/merchant/profile') as Map).cast<String, dynamic>();

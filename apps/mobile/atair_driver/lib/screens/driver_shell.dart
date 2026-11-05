@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'deliveries_screen.dart';
 import 'earnings_screen.dart';
 import 'home_screen.dart';
+import 'notifications_screen.dart';
 import 'profile_screen.dart';
 
 /// Bottom-navigation shell for the authenticated driver.
@@ -24,6 +25,7 @@ class _DriverShellState extends State<DriverShell> {
       DriverHomeScreen(auth: widget.auth),
       DeliveriesScreen(auth: widget.auth),
       EarningsScreen(auth: widget.auth),
+      DriverNotificationsScreen(auth: widget.auth),
       ProfileScreen(auth: widget.auth),
     ];
     return Directionality(
@@ -37,6 +39,7 @@ class _DriverShellState extends State<DriverShell> {
             NavigationDestination(icon: Icon(Icons.home_outlined), selectedIcon: Icon(Icons.home), label: 'الرئيسية'),
             NavigationDestination(icon: Icon(Icons.local_shipping_outlined), selectedIcon: Icon(Icons.local_shipping), label: 'المهمات'),
             NavigationDestination(icon: Icon(Icons.payments_outlined), selectedIcon: Icon(Icons.payments), label: 'الأرباح'),
+            NavigationDestination(icon: Icon(Icons.notifications_outlined), selectedIcon: Icon(Icons.notifications), label: 'الإشعارات'),
             NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'حسابي'),
           ],
         ),

@@ -1,6 +1,8 @@
 import 'package:atair_core/atair_core.dart';
 import 'package:flutter/material.dart';
 
+import 'order_detail_screen.dart';
+
 /// Merchant orders list with a status filter.
 class MerchantOrdersScreen extends StatefulWidget {
   const MerchantOrdersScreen({super.key, required this.auth});
@@ -102,6 +104,14 @@ class _MerchantOrdersScreenState extends State<MerchantOrdersScreen> {
                                         Text(AtairFormat.money(o.total, o.currency), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                                       ],
                                     ),
+                                    onTap: () async {
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => MerchantOrderDetailScreen(auth: widget.auth, orderId: o.id),
+                                        ),
+                                      );
+                                      _load();
+                                    },
                                   ),
                                 );
                               },

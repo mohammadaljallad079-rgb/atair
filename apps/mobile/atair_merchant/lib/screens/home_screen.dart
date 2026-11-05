@@ -1,6 +1,8 @@
 import 'package:atair_core/atair_core.dart';
 import 'package:flutter/material.dart';
 
+import 'notifications_screen.dart';
+
 /// Merchant dashboard: today's KPIs plus the recent orders feed.
 class MerchantHomeScreen extends StatefulWidget {
   const MerchantHomeScreen({super.key, required this.auth});
@@ -11,7 +13,7 @@ class MerchantHomeScreen extends StatefulWidget {
 }
 
 class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
-  Map<String, dynamic>? _dashboard;
+  MerchantDashboard? _dashboard;
   List<OrderSummary> _orders = [];
   bool _loading = true;
   String? _error;
@@ -47,17 +49,20 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final d = _dashboard ?? {};
-    final ordersToday = '${d['ordersToday'] ?? d['orders'] ?? 0}';
-    final revenue = '${d['revenueToday'] ?? d['revenue'] ?? '0'}';
-    final delivered = '${d['deliveredToday'] ?? d['delivered'] ?? 0}';
-    final pending = '${d['pendingToday'] ?? d['pending'] ?? 0}';
+    final d = _dashboard;
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AtairAppBar(
           title: 'عَ الطاير — التاجر',
           actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              tooltip: 'الإشعارات',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => MerchantNotificationsScreen(auth: widget.auth)),
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'تسجيل الخروج',
@@ -78,17 +83,25 @@ class _MerchantHomeScreenState extends State<MerchantHomeScreen> {
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            Expanded(child: MetricTile(label: 'طلبات اليوم', value: ordersToday, icon: Icons.receipt_long_outlined)),
+                            Expanded(child: MetricTile(label: 'طلبات اليوم', value: '${d?.ordersTotal ?? 0}', icon: Icons.receipt_long_outlined)),
                             const SizedBox(width: 10),
-                            Expanded(child: MetricTile(label: 'إيرادات اليوم', value: AtairFormat.money(revenue), icon: Icons.payments_outlined, color: AtairTheme.ink)),
+                            Expanded(child: MetricTile(label: 'مبالغ التحصيل المعلّقة', value: AtairFormat.money(d?.codPending), icon: Icons.payments_outlined, color: AtairTheme.ink)),
                           ],
                         ),
                         const SizedBox(height: 10),
                         Row(
                           children: [
-                            Expanded(child: MetricTile(label: 'تم التسليم', value: delivered, icon: Icons.done_all, color: const Color(0xFF16A34A))),
+                            Expanded(child: MetricTile(label: 'تم التسليم', value: '${d?.ordersDelivered ?? 0}', icon: Icons.done_all, color: const Color(0xFF16A34A))),
                             const SizedBox(width: 10),
-                            Expanded(child: MetricTile(label: 'قيد الانتظار', value: pending, icon: Icons.hourglass_bottom, color: const Color(0xFFD97706))),
+                            Expanded(child: MetricTile(label: 'قيد الانتظار', value: '${d?.ordersPending ?? 0}', icon: Icons.hourglass_bottom, color: const Color(0xFFD97706))),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(child: MetricTile(label: 'قيد التوصيل', value: '${d?.ordersInTransit ?? 0}', icon: Icons.local_shipping_outlined, color: AtairTheme.ink)),
+                            const SizedBox(width: 10),
+                            Expanded(child: MetricTile(label: 'ملغاة', value: '${d?.ordersCancelled ?? 0}', icon: Icons.cancel_outlined, color: const Color(0xFFDC2626))),
                           ],
                         ),
                         const SizedBox(height: 22),

@@ -56,6 +56,64 @@ class ServiceArea {
   final Map<String, dynamic> raw;
   String get id => raw['id'] as String? ?? '';
   String get name => raw['name'] as String? ?? '';
+  String get code => raw['code'] as String? ?? '';
+}
+
+class CustomerAddress {
+  CustomerAddress(this.raw);
+  final Map<String, dynamic> raw;
+  String get id => raw['id'] as String? ?? '';
+  String get label => raw['label'] as String? ?? '';
+  String get address => raw['address'] as String? ?? '';
+  String? get details => raw['details'] as String?;
+  num? get latitude => raw['latitude'] == null ? null : num.tryParse('${raw['latitude']}');
+  num? get longitude => raw['longitude'] == null ? null : num.tryParse('${raw['longitude']}');
+  bool get isDefault => raw['isDefault'] as bool? ?? false;
+}
+
+/// Live tracking snapshot: the order plus the last recorded driver position.
+///
+/// A null [driverLocation] means no position has been reported yet — the UI
+/// must show "not available", never an invented marker.
+class OrderTracking {
+  OrderTracking(this.raw);
+  final Map<String, dynamic> raw;
+
+  Map<String, dynamic> get order => (raw['order'] as Map?)?.cast<String, dynamic>() ?? const {};
+  Map<String, dynamic>? get driverLocation => (raw['driverLocation'] as Map?)?.cast<String, dynamic>();
+  String get status => order['status'] as String? ?? '';
+  num? get pickupLat => order['pickupLat'] == null ? null : num.tryParse('${order['pickupLat']}');
+  num? get pickupLng => order['pickupLng'] == null ? null : num.tryParse('${order['pickupLng']}');
+  num? get dropoffLat => order['dropoffLat'] == null ? null : num.tryParse('${order['dropoffLat']}');
+  num? get dropoffLng => order['dropoffLng'] == null ? null : num.tryParse('${order['dropoffLng']}');
+  num? get driverLat => driverLocation?['latitude'] == null ? null : num.tryParse('${driverLocation!['latitude']}');
+  num? get driverLng => driverLocation?['longitude'] == null ? null : num.tryParse('${driverLocation!['longitude']}');
+  bool get hasDriverPosition => driverLat != null && driverLng != null;
+}
+
+/// Merchant dashboard KPIs, matching the nested `/merchant/dashboard` shape.
+class MerchantDashboard {
+  MerchantDashboard(this.raw);
+  final Map<String, dynamic> raw;
+
+  Map<String, dynamic> get _orders => (raw['orders'] as Map?)?.cast<String, dynamic>() ?? const {};
+  Map<String, dynamic> get _cod => (raw['cod'] as Map?)?.cast<String, dynamic>() ?? const {};
+  Map<String, dynamic> get _finance => (raw['finance'] as Map?)?.cast<String, dynamic>() ?? const {};
+  Map<String, dynamic> get _branches => (raw['branches'] as Map?)?.cast<String, dynamic>() ?? const {};
+  Map<String, dynamic> get _customers => (raw['customers'] as Map?)?.cast<String, dynamic>() ?? const {};
+
+  int get ordersTotal => _orders['total'] as int? ?? 0;
+  int get ordersActive => _orders['active'] as int? ?? 0;
+  int get ordersPending => _orders['pending'] as int? ?? 0;
+  int get ordersSearchingDriver => _orders['searchingDriver'] as int? ?? 0;
+  int get ordersInTransit => _orders['inTransit'] as int? ?? 0;
+  int get ordersDelivered => _orders['delivered'] as int? ?? 0;
+  int get ordersCancelled => _orders['cancelled'] as int? ?? 0;
+  int get ordersFailed => _orders['failed'] as int? ?? 0;
+  String get codPending => '${_cod['pending'] ?? '0'}';
+  String get deliverySpend => '${_finance['deliverySpend'] ?? '0'}';
+  int get activeBranches => _branches['active'] as int? ?? 0;
+  int get customersTotal => _customers['total'] as int? ?? 0;
 }
 
 class DriverDelivery {

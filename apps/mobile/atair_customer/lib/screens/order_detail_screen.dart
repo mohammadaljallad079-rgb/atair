@@ -1,6 +1,8 @@
 import 'package:atair_core/atair_core.dart';
 import 'package:flutter/material.dart';
 
+import 'tracking_screen.dart';
+
 /// Order detail with the live status timeline and a cancel action while the
 /// order is still cancellable.
 class OrderDetailScreen extends StatefulWidget {
@@ -148,6 +150,25 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 ),
                               ),
                             ),
+                            if (order.driver != null) ...[
+                              const SizedBox(height: 14),
+                              Card(
+                                child: ListTile(
+                                  leading: const Icon(Icons.delivery_dining, color: AtairTheme.brand),
+                                  title: Text('${order.driver!['fullName'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                                  subtitle: Text(order.driver!['phone'] == null ? 'السائق المسؤول عن طلبك' : '${order.driver!['phone']}'),
+                                  trailing: order.driver!['rating'] == null
+                                      ? null
+                                      : Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.star, size: 16, color: Color(0xFFD97706)),
+                                            Text('${order.driver!['rating']}'),
+                                          ],
+                                        ),
+                                ),
+                              ),
+                            ],
                             if (order.trackingCode.isNotEmpty) ...[
                               const SizedBox(height: 14),
                               Card(
@@ -158,6 +179,16 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                                 ),
                               ),
                             ],
+                            const SizedBox(height: 14),
+                            FilledButton.icon(
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => CustomerTrackingScreen(auth: widget.auth, orderId: order.id),
+                                ),
+                              ),
+                              icon: const Icon(Icons.my_location),
+                              label: const Text('تتبّع مباشر'),
+                            ),
                             const SizedBox(height: 18),
                             const Text('مراحل الطلب', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                             const SizedBox(height: 10),

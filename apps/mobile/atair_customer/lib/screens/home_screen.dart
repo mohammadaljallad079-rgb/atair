@@ -2,7 +2,9 @@ import 'package:atair_core/atair_core.dart';
 import 'package:flutter/material.dart';
 
 import 'new_order_screen.dart';
+import 'notifications_screen.dart';
 import 'order_detail_screen.dart';
+import 'profile_screen.dart';
 
 /// Customer home: active shipments plus quick access to a new order.
 class HomeScreen extends StatefulWidget {
@@ -57,6 +59,20 @@ class _HomeScreenState extends State<HomeScreen> {
         appBar: AtairAppBar(
           title: 'عَ الطاير',
           actions: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              tooltip: 'الإشعارات',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => CustomerNotificationsScreen(auth: widget.auth)),
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.person_outline),
+              tooltip: 'حسابي',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => CustomerProfileScreen(auth: widget.auth)),
+              ),
+            ),
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'تسجيل الخروج',

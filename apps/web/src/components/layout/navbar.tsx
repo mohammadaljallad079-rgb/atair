@@ -15,6 +15,7 @@ const LINKS = [
   { href: '/services', key: 'nav.services' },
   { href: '/customers', key: 'nav.customers' },
   { href: '/business', key: 'nav.business' },
+  { href: '/drivers', key: 'nav.drivers' },
   { href: '/track', key: 'nav.track' },
   { href: '/about', key: 'nav.about' },
   { href: '/faq', key: 'nav.faq' },

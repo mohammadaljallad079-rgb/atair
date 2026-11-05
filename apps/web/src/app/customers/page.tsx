@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useI18n } from '@/i18n/provider';
 import { useSite } from '@/lib/site-provider';
 import { Section, SectionHeading, Card, CheckItem } from '@/components/ui/primitives';
+import { CUSTOMER_URL } from '@/components/layout/navbar';
 
 export default function CustomersPage() {
   const { t } = useI18n();
@@ -58,6 +59,29 @@ export default function CustomersPage() {
               <p className="mt-1.5 text-sm text-slate-500">{t(`home.how.step${n}.body`)}</p>
             </Card>
           ))}
+        </div>
+      </Section>
+
+      <Section>
+        <div className="grid items-center gap-6 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 lg:grid-cols-[2fr_1fr]">
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{t('register.customerTitle')}</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-600">{t('register.customerBody')}</p>
+          </div>
+          <div className="flex flex-wrap gap-3 lg:justify-end">
+            <a
+              href={`${CUSTOMER_URL}/register`}
+              className="inline-flex rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-700"
+            >
+              {t('register.customerCta')}
+            </a>
+            <a
+              href={CUSTOMER_URL}
+              className="inline-flex rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-ink-800 transition-colors hover:bg-slate-50"
+            >
+              {t('nav.login')}
+            </a>
+          </div>
         </div>
       </Section>
     </>
