@@ -60,6 +60,8 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Each app constructs `AuthController` with its own role list: customer `['customer']`, driver `['driver']`, merchant `['merchant_owner','merchant']`. The gate only produces a clear message — the backend `*BoundaryGuard` remains the security boundary.
 - `ATAIR_API_BASE` is injected with `--dart-define` (defaults to the production API). `ATAIR_TENANT_SLUG` is **optional** — only send it when an identifier exists in more than one tenant, otherwise the server filters the account out.
 - Driver status progression in the app mirrors the backend `DRIVER_TRANSITIONS` whitelist (forward-only); never send an arbitrary target status.
+- Android release signing: each app's `android/app/build.gradle` reads `android/key.properties` when present and otherwise falls back to the debug key (so a build always succeeds but an unsigned artefact is never mistaken for a Play-ready one). `key.properties` and `local.properties` are git-ignored — never commit them.
+- Reproducible local build: `source apps/mobile/env.sh` (JDK 17 + Android SDK + Flutter + pub cache paths), then `apps/mobile/build_all.sh` builds all six artefacts (APK + AAB for each app). Build one: `flutter build apk --release --dart-define=ATAIR_API_BASE=https://admin.sumu-app.store/api/v1`.
 
 ## API conventions
 - Global prefix `/api`, URI versioning (default `v1`) → routes are `/api/v1/...`. Swagger at `/api/docs`.
