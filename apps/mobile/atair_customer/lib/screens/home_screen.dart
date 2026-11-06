@@ -98,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     const CircleAvatar(
                       backgroundColor: Color(0x1FF97316),
-                      child: Text('👤', style: TextStyle(fontSize: 20)),
+                      child: Icon(Icons.person_outline, size: 20, color: AtairTheme.brandDark),
                     ),
                     const SizedBox(width: 12),
                     Expanded(

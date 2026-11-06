@@ -62,7 +62,15 @@ class SessionStore {
     this.accessToken = accessToken;
     this.user = user;
     _cachedRefresh = refreshToken;
-    await _secure.write(key: _kRefresh, value: refreshToken);
+    // A secure-storage failure must not fail an otherwise-successful sign-in:
+    // the access token is already in memory, and the in-memory refresh token
+    // keeps the session usable for this run. Persisting is best-effort, exactly
+    // like `load()` treats a read failure as "no stored session".
+    try {
+      await _secure.write(key: _kRefresh, value: refreshToken);
+    } catch (_) {
+      // Keep the in-memory session; it will simply not survive a restart.
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kUser, jsonEncode(user));
   }

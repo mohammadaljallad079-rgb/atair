@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 
 /// Customer self-registration.
 ///
-/// Registration is a public endpoint; on success we immediately log in with the
-/// same credentials so the user lands inside the app without a second step.
+/// Registration is a public endpoint that creates the account *and* issues a
+/// session, so a successful submit lands the user straight on the home screen.
+/// Client-side validation mirrors the server contract exactly (a valid phone
+/// and a password with at least 8 characters containing a letter and a digit),
+/// so the common mistakes are caught before a round-trip and the user gets the
+/// reason in their own language.
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, required this.auth});
 
@@ -23,6 +27,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   String? _error;
   String? _errorKey;
 
+  /// Same rule the API enforces (`^\+?[0-9]{7,15}$`).
+  static final _phoneRe = RegExp(r'^\+?[0-9]{7,15}$');
+
+  /// Same rule the API enforces: 8+ chars with at least one letter and one digit.
+  static final _passwordRe = RegExp(r'^(?=.*[A-Za-z])(?=.*\d).+$');
+
   @override
   void dispose() {
     _fullName.dispose();
@@ -32,13 +42,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  /// Returns an error key for the first invalid field, or null when valid.
+  String? _validate() {
     if (_fullName.text.trim().isEmpty || _phone.text.trim().isEmpty) {
-      setState(() => _errorKey = 'register.required');
-      return;
+      return 'register.required';
     }
-    if (_password.text.length < 8) {
-      setState(() => _errorKey = 'register.passwordTooShort');
+    if (!_phoneRe.hasMatch(_phone.text.trim())) {
+      return 'register.invalidPhone';
+    }
+    final email = _email.text.trim();
+    if (email.isNotEmpty && !email.contains('@')) {
+      return 'register.invalidEmail';
+    }
+    final password = _password.text;
+    if (password.length < 8) return 'register.passwordTooShort';
+    if (!_passwordRe.hasMatch(password)) return 'register.passwordNeedsLetterAndNumber';
+    return null;
+  }
+
+  Future<void> _submit() async {
+    final invalid = _validate();
+    if (invalid != null) {
+      setState(() => _errorKey = invalid);
       return;
     }
     setState(() {
@@ -46,28 +71,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _error = null;
       _errorKey = null;
     });
-    try {
-      await widget.auth.api.registerCustomer(
-        fullName: _fullName.text.trim(),
-        phone: _phone.text.trim(),
-        password: _password.text,
-        email: _email.text.trim(),
-      );
-      final ok = await widget.auth.login(_phone.text.trim(), _password.text);
-      if (!ok && mounted) {
-        setState(() {
-          _error = widget.auth.error;
-          _errorKey = widget.auth.errorKey;
-        });
-      }
-      if (ok && mounted) Navigator.of(context).pop(true);
-    } on ApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } catch (_) {
-      if (mounted) setState(() => _errorKey = 'register.failed');
-    } finally {
-      if (mounted) setState(() => _busy = false);
+    final ok = await widget.auth.register(
+      fullName: _fullName.text.trim(),
+      phone: _phone.text.trim(),
+      password: _password.text,
+      email: _email.text.trim(),
+    );
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pop(true);
+      return;
     }
+    setState(() {
+      _error = widget.auth.error;
+      _errorKey = widget.auth.errorKey;
+      _busy = false;
+    });
   }
 
   @override
@@ -79,6 +98,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            Center(
+              child: BrandLogo(
+                variant: BrandLogoVariant.full,
+                height: 96,
+                semanticLabel: context.tr('register.title'),
+              ),
+            ),
+            const SizedBox(height: 20),
             TextField(
               controller: _fullName,
               decoration: InputDecoration(labelText: context.tr('register.fullName'), prefixIcon: const Icon(Icons.badge_outlined)),
@@ -109,8 +136,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
             if (_error != null || _errorKey != null) ...[
               const SizedBox(height: 12),
-              Text(_errorKey != null ? context.tr(_errorKey!) : _error!,
-                  style: const TextStyle(color: Color(0xFFB91C1C))),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  _errorKey != null ? context.tr(_errorKey!) : _error!,
+                  style: const TextStyle(color: Color(0xFFB91C1C), fontSize: 13),
+                ),
+              ),
             ],
             const SizedBox(height: 22),
             FilledButton(

@@ -22,3 +22,7 @@ dev_dependencies:
   flutter_lints: ^4.0.0
 
 flutter:
+  assets:
+    - assets/brand/logo-full.png
+    - assets/brand/logo-mark.png
+    - assets/brand/logo-original.jpeg

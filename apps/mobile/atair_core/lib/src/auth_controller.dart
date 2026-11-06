@@ -27,11 +27,16 @@ class AuthController extends ChangeNotifier {
 
   bool _booting = true;
   bool _busy = false;
+  bool _guest = false;
   String? _error;
   String? _errorKey;
 
   bool get booting => _booting;
   bool get busy => _busy;
+
+  /// True when the user chose to browse without an account. Guests can reach
+  /// public screens only; any protected action must call [requireLogin].
+  bool get isGuest => _guest;
 
   /// A server-supplied message (already localized by the API when it can).
   String? get error => _error;
@@ -42,6 +47,21 @@ class AuthController extends ChangeNotifier {
 
   bool get isAuthenticated => session.isAuthenticated;
   AppUser? get user => session.user == null ? null : AppUser(session.user!);
+
+  /// Enter guest mode: no session, only public screens.
+  void continueAsGuest() {
+    _guest = true;
+    _error = null;
+    _errorKey = null;
+    notifyListeners();
+  }
+
+  /// Leave guest mode (e.g. the user tapped "Sign in" from the guest shell).
+  void exitGuest() {
+    if (!_guest) return;
+    _guest = false;
+    notifyListeners();
+  }
 
   Future<void> bootstrap() async {
     await session.load();
@@ -62,6 +82,7 @@ class AuthController extends ChangeNotifier {
         _errorKey = 'login.roleDenied';
         return false;
       }
+      _guest = false;
       return true;
     } on ApiException catch (e) {
       // Network failures carry a stable code so the UI can localize them; other
@@ -82,8 +103,76 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// Create a customer account and sign in with the tokens the server returns.
+  ///
+  /// Registration already issues a session (User + linked Customer created in
+  /// one transaction), so we persist those tokens directly instead of making a
+  /// second login round-trip. That removes a whole class of failures where the
+  /// account is created but the follow-up login is throttled or rejected.
+  Future<bool> register({
+    required String fullName,
+    required String phone,
+    required String password,
+    String? email,
+  }) async {
+    _busy = true;
+    _error = null;
+    _errorKey = null;
+    notifyListeners();
+    try {
+      final data = await api.registerCustomer(
+        fullName: fullName,
+        phone: phone,
+        password: password,
+        email: email,
+      );
+      final accessToken = data['accessToken'] as String?;
+      final refreshToken = data['refreshToken'] as String?;
+      final user = (data['user'] as Map?)?.cast<String, dynamic>();
+      if (accessToken == null || refreshToken == null || user == null) {
+        _errorKey = 'register.failed';
+        return false;
+      }
+      await client.session.save(
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+        user: user,
+      );
+      _guest = false;
+      return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      _errorKey = _registerErrorKey(e);
+      return false;
+    } catch (_) {
+      _errorKey = 'register.failed';
+      return false;
+    } finally {
+      _busy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Maps a registration failure to a localizable key so the user sees the
+  /// reason in their own language instead of a raw server string.
+  String? _registerErrorKey(ApiException e) {
+    switch (e.code) {
+      case 'TIMEOUT':
+        return 'net.timeout';
+      case 'NETWORK_ERROR':
+        return 'net.error';
+      case 'ACCOUNT_EXISTS':
+        return 'register.accountExists';
+      case 'TENANT_REQUIRED':
+        return 'register.tenantRequired';
+      default:
+        return null; // keep the server message verbatim
+    }
+  }
+
   Future<void> logout() async {
     await client.logout();
+    _guest = false;
     notifyListeners();
   }
 }

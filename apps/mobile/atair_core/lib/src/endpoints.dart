@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import 'config.dart';
 import 'models.dart';
 
 /// Typed endpoint facade over [ApiClient].
@@ -15,20 +16,31 @@ class AtairApi {
   Future<Map<String, dynamic>> publicSite() async =>
       (await client.get('/public/site', auth: false) as Map).cast<String, dynamic>();
 
+  /// Public order tracking by opaque code — no authentication, no PII.
+  Future<Map<String, dynamic>> publicTrack(String code) async =>
+      (await client.get('/public/track/$code', auth: false) as Map).cast<String, dynamic>();
+
   Future<Map<String, dynamic>> registerCustomer({
     required String fullName,
     required String phone,
     required String password,
     String? email,
+    String? tenantSlug,
   }) async {
+    final slug = (tenantSlug == null || tenantSlug.isEmpty) ? AtairConfig.tenantSlug : tenantSlug;
     final res = await client.post('/customer/auth/register', auth: false, body: {
       'fullName': fullName,
       'phone': phone,
       'password': password,
       if (email != null && email.isNotEmpty) 'email': email,
+      if (slug.isNotEmpty) 'tenantSlug': slug,
     });
     return (res as Map).cast<String, dynamic>();
   }
+
+  /// Public registration configuration (enabled? tenant slug? payment methods?).
+  Future<Map<String, dynamic>> customerAuthConfig() async =>
+      (await client.get('/customer/auth/config', auth: false) as Map).cast<String, dynamic>();
 
   // ---------------------------------------------------------------- customer
 

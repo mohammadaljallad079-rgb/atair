@@ -71,6 +71,36 @@ void main() {
     expect(find.text('كلمة المرور يجب أن تكون ٨ أحرف على الأقل'), findsOneWidget);
   });
 
+  testWidgets('registration screen rejects a password without a digit before calling the API', (tester) async {
+    // The live API rejects this exact case ("must contain at least one letter
+    // and one number"); the client must catch it locally and say why.
+    final auth = AuthController(requiredRoles: const ['customer']);
+    await tester.pumpWidget(atairTestApp(RegisterScreen(auth: auth)));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).at(0), 'أحمد');
+    await tester.enterText(find.byType(TextField).at(1), '+966500000000');
+    await tester.enterText(find.byType(TextField).at(3), 'abcdefgh');
+    await tester.tap(find.text('إنشاء الحساب'));
+    await tester.pump();
+
+    expect(find.text('كلمة المرور يجب أن تحتوي على حرف ورقم معًا'), findsOneWidget);
+  });
+
+  testWidgets('registration screen rejects an invalid mobile number locally', (tester) async {
+    final auth = AuthController(requiredRoles: const ['customer']);
+    await tester.pumpWidget(atairTestApp(RegisterScreen(auth: auth)));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextField).at(0), 'أحمد');
+    await tester.enterText(find.byType(TextField).at(1), '123');
+    await tester.enterText(find.byType(TextField).at(3), 'abcd1234');
+    await tester.tap(find.text('إنشاء الحساب'));
+    await tester.pump();
+
+    expect(find.text('أدخل رقم جوال صحيحًا (مثال: ‎+9665xxxxxxxx)'), findsOneWidget);
+  });
+
   testWidgets('notifications screen renders its empty state without a backend', (tester) async {
     final auth = AuthController(requiredRoles: const ['customer']);
     await tester.pumpWidget(atairTestApp(CustomerNotificationsScreen(auth: auth)));

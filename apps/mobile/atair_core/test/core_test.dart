@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:atair_core/atair_core.dart';
 import 'package:atair_core/testing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/testing.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -182,5 +187,122 @@ void main() {
     await tester.pumpWidget(atairTestApp(Scaffold(body: AtairTrackingMap(tracking: tracking))));
     await tester.pump();
     expect(find.text('لا تتوفّر إحداثيات لعرضها على الخريطة'), findsOneWidget);
+  });
+
+  group('BrandLogo', () {
+    test('resolves the packaged official artwork from the shared package', () {
+      // A package's assets are exposed to consumers under `packages/<name>/`;
+      // a bare `assets/brand/...` path resolves to nothing and the widget
+      // silently shows its fallback icon instead of the official logo.
+      expect(
+        BrandLogo.assetFor(BrandLogoVariant.full),
+        'packages/atair_core/assets/brand/logo-full.png',
+      );
+      expect(
+        BrandLogo.assetFor(BrandLogoVariant.mark),
+        'packages/atair_core/assets/brand/logo-mark.png',
+      );
+    });
+
+    testWidgets('renders the packaged image and never mirrors it in RTL', (tester) async {
+      await tester.pumpWidget(atairTestApp(const Scaffold(
+        body: Center(child: BrandLogo(variant: BrandLogoVariant.full, height: 96)),
+      )));
+      await tester.pump();
+      final image = tester.widget<Image>(find.byType(Image));
+      expect((image.image as AssetImage).assetName, 'packages/atair_core/assets/brand/logo-full.png');
+      // The surrounding tree is RTL, but the logo subtree is forced LTR so the
+      // artwork is never mirrored.
+      final dir = tester.widget<Directionality>(find.ancestor(
+        of: find.byType(Image),
+        matching: find.byType(Directionality),
+      ).first);
+      expect(dir.textDirection, TextDirection.ltr);
+    });
+
+    test('the referenced artwork exists on disk (no silent fallback)', () {
+      // `Image.asset` never throws on a missing asset — it swaps in the
+      // `errorBuilder`. The asset must therefore exist at the referenced path,
+      // resolved from the package root, or the logo silently degrades to an icon.
+      for (final variant in BrandLogoVariant.values) {
+        final asset = BrandLogo.assetFor(variant);
+        final relative = asset.replaceFirst('packages/atair_core/', '');
+        expect(File('$relative').existsSync(), isTrue, reason: '$asset is missing');
+        expect(File('$relative').lengthSync(), greaterThan(0));
+      }
+    });
+  });
+
+  group('AuthController.register', () {
+    setUp(() {
+      useInMemoryPreferences();
+      useInMemorySecureStorage();
+    });
+
+    test('persists the session returned by registration without a second login', () async {
+      var loginCalls = 0;
+      final mock = MockClient((request) async {
+        if (request.url.path.endsWith('/auth/login')) loginCalls++;
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'accessToken': 'access-1',
+              'refreshToken': 'refresh-1',
+              'user': {'id': 'u1', 'fullName': 'أحمد', 'roles': ['customer']},
+            },
+          }),
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final auth = AuthController(
+        requiredRoles: const ['customer'],
+        client: ApiClient(httpClient: mock),
+      );
+
+      final ok = await auth.register(fullName: 'أحمد', phone: '+966500000000', password: 'abcd1234');
+
+      expect(ok, isTrue);
+      expect(auth.isAuthenticated, isTrue);
+      expect(auth.session.accessToken, 'access-1');
+      // The whole point of the fix: no follow-up login round-trip.
+      expect(loginCalls, 0);
+    });
+
+    test('maps a duplicate account to a localizable key', () async {
+      final mock = MockClient((request) async => http.Response(
+            jsonEncode({
+              'success': false,
+              'error': {'code': 'ACCOUNT_EXISTS', 'message': 'Account already exists'},
+            }),
+            409,
+            headers: {'content-type': 'application/json'},
+          ));
+      final auth = AuthController(
+        requiredRoles: const ['customer'],
+        client: ApiClient(httpClient: mock),
+      );
+
+      final ok = await auth.register(fullName: 'أحمد', phone: '+966500000000', password: 'abcd1234');
+
+      expect(ok, isFalse);
+      expect(auth.errorKey, 'register.accountExists');
+      expect(auth.isAuthenticated, isFalse);
+    });
+  });
+
+  group('guest mode', () {
+    test('entering and leaving guest mode toggles state without a session', () {
+      final auth = AuthController(requiredRoles: const ['customer']);
+      expect(auth.isGuest, isFalse);
+
+      auth.continueAsGuest();
+      expect(auth.isGuest, isTrue);
+      expect(auth.isAuthenticated, isFalse);
+
+      auth.exitGuest();
+      expect(auth.isGuest, isFalse);
+    });
   });
 }

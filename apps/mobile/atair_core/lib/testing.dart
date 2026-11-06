@@ -5,6 +5,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'src/l10n.dart';
@@ -21,6 +22,18 @@ void useInMemoryPreferences([Map<String, Object> initial = const {}]) {
   // expects for `setMockInitialValues`.
   // ignore: invalid_use_of_visible_for_testing_member
   SharedPreferences.setMockInitialValues(initial);
+}
+
+/// Redirects `flutter_secure_storage` to an in-memory map for tests.
+///
+/// `SessionStore` writes the refresh token through secure storage; the real
+/// implementation talks to the Android Keystore / iOS Keychain platform
+/// channel, which is absent under `flutter test`.
+void useInMemorySecureStorage([Map<String, String> initial = const {}]) {
+  // `setMockInitialValues` keeps the map by reference and writes into it, so it
+  // must be mutable (a `const {}` default would throw on the first write).
+  // ignore: invalid_use_of_visible_for_testing_member
+  FlutterSecureStorage.setMockInitialValues({...initial});
 }
 
 /// Wraps a widget in the same locale scope + theme the apps use at runtime, so

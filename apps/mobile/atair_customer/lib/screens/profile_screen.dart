@@ -167,7 +167,7 @@ class _CustomerProfileScreenState extends State<CustomerProfileScreen> {
                                   const CircleAvatar(
                                     radius: 34,
                                     backgroundColor: Color(0x1FF97316),
-                                    child: Text('👤', style: TextStyle(fontSize: 30)),
+                                    child: Icon(Icons.person_outline, size: 34, color: AtairTheme.brandDark),
                                   ),
                                   const SizedBox(height: 12),
                                   Text('${p['fullName'] ?? user?.fullName ?? ''}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),

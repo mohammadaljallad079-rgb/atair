@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'auth_controller.dart';
+import 'brand.dart';
 import 'l10n.dart';
 import 'theme.dart';
 import 'widgets.dart';
@@ -18,6 +19,7 @@ class AtairLoginScreen extends StatefulWidget {
     required this.subtitle,
     this.accent = AtairTheme.brand,
     this.footer,
+    this.onGuest,
   });
 
   final AuthController auth;
@@ -25,6 +27,10 @@ class AtairLoginScreen extends StatefulWidget {
   final String subtitle;
   final Color accent;
   final Widget? footer;
+
+  /// When provided, a "Continue as guest" action is shown under the sign-in
+  /// button (customer app only). Guests reach public screens without a session.
+  final VoidCallback? onGuest;
 
   @override
   State<AtairLoginScreen> createState() => _AtairLoginScreenState();
@@ -72,15 +78,12 @@ class _AtairLoginScreenState extends State<AtairLoginScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             const SizedBox(height: 8),
-                            Container(
-                              width: 84,
-                              height: 84,
-                              alignment: Alignment.center,
-                              decoration: BoxDecoration(
-                                color: widget.accent.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(22),
+                            Center(
+                              child: BrandLogo(
+                                variant: BrandLogoVariant.full,
+                                height: 132,
+                                semanticLabel: widget.appTitle,
                               ),
-                              child: const Text('🐦', style: TextStyle(fontSize: 42)),
                             ),
                             const SizedBox(height: 18),
                             Text(
@@ -145,6 +148,14 @@ class _AtairLoginScreenState extends State<AtairLoginScreen> {
                                     )
                                   : Text(l10n.t('login.submit')),
                             ),
+                            if (widget.onGuest != null) ...[
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: widget.auth.busy ? null : widget.onGuest,
+                                icon: const Icon(Icons.explore_outlined, size: 18),
+                                label: Text(l10n.t('guest.continue')),
+                              ),
+                            ],
                             if (widget.footer != null) ...[
                               const SizedBox(height: 18),
                               widget.footer!,

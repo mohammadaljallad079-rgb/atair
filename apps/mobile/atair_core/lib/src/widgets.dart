@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'brand.dart';
 import 'l10n.dart';
 import 'theme.dart';
 
@@ -56,15 +57,10 @@ class _BirdMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return const SizedBox(
       width: 32,
       height: 32,
-      decoration: BoxDecoration(
-        color: AtairTheme.brand.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      alignment: Alignment.center,
-      child: const Text('🐦', style: TextStyle(fontSize: 17)),
+      child: Center(child: BrandLogo(variant: BrandLogoVariant.mark, height: 28)),
     );
   }
 }

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'auth_controller.dart';
+import 'brand.dart';
 import 'l10n.dart';
 import 'login_screen.dart';
 import 'theme.dart';
-import 'widgets.dart';
 
 /// Shared application root for the three ATAIR mobile apps.
 ///
@@ -23,6 +23,7 @@ class AtairAppRoot extends StatefulWidget {
     required this.builder,
     this.accent = AtairTheme.brand,
     this.loginFooter,
+    this.guestBuilder,
   });
 
   final AuthController auth;
@@ -38,6 +39,10 @@ class AtairAppRoot extends StatefulWidget {
 
   /// Optional extra content under the login button (e.g. a register link).
   final Widget Function(BuildContext context)? loginFooter;
+
+  /// Builds the public (guest) shell. When null the app has no guest mode and
+  /// the login screen shows no "Continue as guest" action.
+  final Widget Function(BuildContext context, AuthController auth)? guestBuilder;
 
   @override
   State<AtairAppRoot> createState() => _AtairAppRootState();
@@ -70,9 +75,14 @@ class _AtairAppRootState extends State<AtairAppRoot> {
             home: AnimatedBuilder(
               animation: widget.auth,
               builder: (context, _) {
-                if (widget.auth.booting) return const Scaffold(body: LoadingView());
+                if (widget.auth.booting) {
+                  return Scaffold(body: BrandSplash(label: _locale.t(widget.titleKey)));
+                }
                 if (widget.auth.isAuthenticated) {
                   return widget.builder(context, widget.auth);
+                }
+                if (widget.auth.isGuest && widget.guestBuilder != null) {
+                  return widget.guestBuilder!(context, widget.auth);
                 }
                 return AtairLoginScreen(
                   auth: widget.auth,
@@ -80,6 +90,9 @@ class _AtairAppRootState extends State<AtairAppRoot> {
                   subtitle: _locale.t(widget.subtitleKey),
                   accent: widget.accent,
                   footer: widget.loginFooter?.call(context),
+                  onGuest: widget.guestBuilder == null
+                      ? null
+                      : () => widget.auth.continueAsGuest(),
                 );
               },
             ),
