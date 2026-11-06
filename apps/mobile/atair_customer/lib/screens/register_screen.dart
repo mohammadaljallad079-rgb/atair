@@ -86,7 +86,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _password.text;
     if (password.length < 8) return 'register.passwordTooShort';
     if (!_passwordRe.hasMatch(password)) return 'register.passwordNeedsLetterAndNumber';
-    if (_requiresTenant && _tenantSlug.text.trim().isEmpty) {
+    // Only demand a slug when the deployment truly needs one and neither the
+    // user nor the build-time default supplies it.
+    if (_requiresTenant && _tenantSlug.text.trim().isEmpty && AtairConfig.tenantSlug.isEmpty) {
       return 'register.tenantRequired';
     }
     return null;
