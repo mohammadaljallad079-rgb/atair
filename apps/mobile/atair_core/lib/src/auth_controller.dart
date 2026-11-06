@@ -114,6 +114,7 @@ class AuthController extends ChangeNotifier {
     required String phone,
     required String password,
     String? email,
+    String? tenantSlug,
   }) async {
     _busy = true;
     _error = null;
@@ -125,6 +126,7 @@ class AuthController extends ChangeNotifier {
         phone: phone,
         password: password,
         email: email,
+        tenantSlug: tenantSlug,
       );
       final accessToken = data['accessToken'] as String?;
       final refreshToken = data['refreshToken'] as String?;

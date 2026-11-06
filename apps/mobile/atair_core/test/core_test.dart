@@ -290,6 +290,62 @@ void main() {
       expect(auth.errorKey, 'register.accountExists');
       expect(auth.isAuthenticated, isFalse);
     });
+
+    test('forwards an explicit tenant slug so multi-tenant sign-up resolves', () async {
+      String? sentSlug;
+      final mock = MockClient((request) async {
+        sentSlug = (jsonDecode(request.body) as Map)['tenantSlug'] as String?;
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'accessToken': 'access-1',
+              'refreshToken': 'refresh-1',
+              'user': {'id': 'u1', 'fullName': 'أحمد', 'roles': ['customer']},
+            },
+          }),
+          201,
+          headers: {'content-type': 'application/json'},
+        );
+      });
+      final auth = AuthController(
+        requiredRoles: const ['customer'],
+        client: ApiClient(httpClient: mock),
+      );
+
+      final ok = await auth.register(
+        fullName: 'أحمد',
+        phone: '+966500000000',
+        password: 'abcd1234',
+        tenantSlug: 'atair-demo',
+      );
+
+      expect(ok, isTrue);
+      expect(sentSlug, 'atair-demo');
+    });
+
+    test('maps a missing tenant to a localizable key', () async {
+      final mock = MockClient((request) async => http.Response(
+            jsonEncode({
+              'success': false,
+              'error': {
+                'code': 'TENANT_REQUIRED',
+                'message': 'Multiple tenants are available; specify tenantSlug',
+              },
+            }),
+            409,
+            headers: {'content-type': 'application/json'},
+          ));
+      final auth = AuthController(
+        requiredRoles: const ['customer'],
+        client: ApiClient(httpClient: mock),
+      );
+
+      final ok = await auth.register(fullName: 'أحمد', phone: '+966500000000', password: 'abcd1234');
+
+      expect(ok, isFalse);
+      expect(auth.errorKey, 'register.tenantRequired');
+    });
   });
 
   group('guest mode', () {

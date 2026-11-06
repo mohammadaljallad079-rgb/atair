@@ -23,7 +23,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _phone = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _tenantSlug = TextEditingController();
   bool _busy = false;
+  bool _requiresTenant = false;
   String? _error;
   String? _errorKey;
 
@@ -34,11 +36,38 @@ class _RegisterScreenState extends State<RegisterScreen> {
   static final _passwordRe = RegExp(r'^(?=.*[A-Za-z])(?=.*\d).+$');
 
   @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  /// Ask the server whether an organisation slug is required. When exactly one
+  /// active tenant exists the server resolves it automatically, so the field
+  /// stays hidden; otherwise the user must pick their organisation.
+  Future<void> _loadConfig() async {
+    try {
+      final cfg = await widget.auth.api.customerAuthConfig();
+      if (!mounted) return;
+      final requires = cfg['requiresTenantSlug'] == true;
+      final single = cfg['tenantSlug'] as String?;
+      setState(() {
+        _requiresTenant = requires;
+        if (!requires && single != null && single.isNotEmpty) {
+          _tenantSlug.text = single;
+        }
+      });
+    } catch (_) {
+      // Non-fatal: fall back to whatever the user types / the build default.
+    }
+  }
+
+  @override
   void dispose() {
     _fullName.dispose();
     _phone.dispose();
     _email.dispose();
     _password.dispose();
+    _tenantSlug.dispose();
     super.dispose();
   }
 
@@ -57,6 +86,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _password.text;
     if (password.length < 8) return 'register.passwordTooShort';
     if (!_passwordRe.hasMatch(password)) return 'register.passwordNeedsLetterAndNumber';
+    if (_requiresTenant && _tenantSlug.text.trim().isEmpty) {
+      return 'register.tenantRequired';
+    }
     return null;
   }
 
@@ -76,6 +108,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       phone: _phone.text.trim(),
       password: _password.text,
       email: _email.text.trim(),
+      tenantSlug: _tenantSlug.text.trim().isEmpty ? null : _tenantSlug.text.trim(),
     );
     if (!mounted) return;
     if (ok) {
@@ -124,6 +157,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
               textDirection: TextDirection.ltr,
               decoration: InputDecoration(labelText: context.tr('register.email'), prefixIcon: const Icon(Icons.email_outlined)),
             ),
+            if (_requiresTenant) ...[
+              const SizedBox(height: 14),
+              TextField(
+                controller: _tenantSlug,
+                textDirection: TextDirection.ltr,
+                decoration: InputDecoration(
+                  labelText: context.tr('register.tenantSlug'),
+                  prefixIcon: const Icon(Icons.business_outlined),
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             TextField(
               controller: _password,
