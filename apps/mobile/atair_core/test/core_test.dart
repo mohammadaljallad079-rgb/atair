@@ -360,5 +360,19 @@ void main() {
       auth.exitGuest();
       expect(auth.isGuest, isFalse);
     });
+
+    testWidgets('the shared guest shell renders the guest banner and sign-in', (tester) async {
+      useInMemoryPreferences();
+      useInMemorySecureStorage();
+      // The public site call is irrelevant here; the banner + sign-in action
+      // must render regardless of whether the load succeeds.
+      final auth = AuthController(requiredRoles: const ['customer']);
+      await tester.pumpWidget(atairTestApp(GuestHomeScreen(auth: auth)));
+      await tester.pump();
+
+      expect(find.text('أنت تتصفّح كزائر. سجّل الدخول لإتمام الطلبات والتتبّع.'), findsOneWidget);
+      expect(find.text('تسجيل الدخول'), findsWidgets);
+      expect(find.text('تتبّع طلبك'), findsOneWidget);
+    });
   });
 }

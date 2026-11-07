@@ -34,6 +34,7 @@ class _AtairMerchantAppState extends State<AtairMerchantApp> {
       subtitleKey: 'merchant.subtitle',
       accent: AtairTheme.ink,
       builder: (context, auth) => MerchantShell(auth: auth),
+      guestBuilder: (context, auth) => GuestHomeScreen(auth: auth),
     );
   }
 }

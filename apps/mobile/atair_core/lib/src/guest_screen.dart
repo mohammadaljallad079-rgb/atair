@@ -1,7 +1,14 @@
-import 'package:atair_core/atair_core.dart';
 import 'package:flutter/material.dart';
 
-/// Public (guest) shell for the customer app.
+import 'api_exception.dart';
+import 'auth_controller.dart';
+import 'format.dart';
+import 'l10n.dart';
+import 'models.dart';
+import 'theme.dart';
+import 'widgets.dart';
+
+/// Public (guest) shell shared by the three ATAIR apps.
 ///
 /// A guest can browse the published services and service areas and look up an
 /// order by its public tracking code — all served by the anonymous
@@ -229,7 +236,7 @@ class _PublicTrackingScreenState extends State<PublicTrackingScreen> {
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = context.tr('orderDetail.notFound'));
+      if (mounted) setState(() => _error = context.tr('guest.trackNotFound'));
     } finally {
       if (mounted) setState(() => _loading = false);
     }

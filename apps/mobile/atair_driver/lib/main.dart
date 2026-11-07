@@ -34,6 +34,7 @@ class _AtairDriverAppState extends State<AtairDriverApp> {
       subtitleKey: 'driver.subtitle',
       accent: AtairTheme.ink,
       builder: (context, auth) => DriverShell(auth: auth),
+      guestBuilder: (context, auth) => GuestHomeScreen(auth: auth),
     );
   }
 }

@@ -2,7 +2,6 @@ import 'package:atair_core/atair_core.dart';
 import 'package:flutter/material.dart';
 
 import 'i18n.dart';
-import 'screens/guest_home_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/register_screen.dart';
 

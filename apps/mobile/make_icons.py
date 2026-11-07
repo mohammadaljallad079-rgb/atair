@@ -18,6 +18,7 @@ Emits, for every app and density:
 Run from anywhere:  python3 apps/mobile/make_icons.py
 """
 import os
+import re
 from PIL import Image, ImageDraw
 import numpy as np
 
@@ -31,7 +32,7 @@ ADAPTIVE = {'mdpi': 108, 'hdpi': 162, 'xhdpi': 216, 'xxhdpi': 324, 'xxxhdpi': 43
 
 # Web app metadata per app (name / short_name / description).
 WEB_META = {
-    'atair_customer': ('عَ الطاير — العملاء', 'عَ الطاير', 'تطبيق العملاء لطلب وتتبّع الشحنات'),
+    'atair_customer': ('عَ الطاير', 'عَ الطاير', 'تطبيق العملاء لطلب وتتبّع الشحنات'),
     'atair_driver': ('عَ الطاير — السائق', 'عَ الطاير', 'تطبيق السائقين لإدارة التوصيلات'),
     'atair_merchant': ('عَ الطاير — التاجر', 'عَ الطاير', 'بوابة التجار لإدارة الطلبات'),
 }
@@ -176,11 +177,14 @@ def write_web_icons(app_dir, app):
     index = os.path.join(web, 'index.html')
     if os.path.isfile(index):
         html = open(index, encoding='utf-8').read()
-        html = html.replace('<meta name="description" content="A new Flutter project.">',
-                            '<meta name="description" content="%s">' % desc)
-        html = html.replace('<meta name="apple-mobile-web-app-title" content="%s">' % app,
-                            '<meta name="apple-mobile-web-app-title" content="%s">' % short)
-        html = html.replace('<title>%s</title>' % app, '<title>%s</title>' % name)
+        # Replace by pattern, not by exact previous value: the title/apple-title
+        # are rewritten every run and the previous value is not stable.
+        html = re.sub(r'<meta name="description" content="[^"]*">',
+                      '<meta name="description" content="%s">' % desc, html, count=1)
+        html = re.sub(r'<meta name="apple-mobile-web-app-title" content="[^"]*">',
+                      '<meta name="apple-mobile-web-app-title" content="%s">' % short, html, count=1)
+        html = re.sub(r'<title>[^<]*</title>',
+                      '<title>%s</title>' % name, html, count=1)
         open(index, 'w', encoding='utf-8').write(html)
     print('web icons generated:', app)
 
