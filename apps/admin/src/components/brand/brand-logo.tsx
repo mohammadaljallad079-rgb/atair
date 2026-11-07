@@ -20,8 +20,8 @@ const FULL_WEBP = '/assets/brand/logo-full.webp';
 const FULL_PNG = '/assets/brand/logo-full.png';
 
 const MARK_SIZE: Record<'navigation' | 'compact', string> = {
-  navigation: 'h-9 w-9',
-  compact: 'h-8 w-8',
+  navigation: 'h-9 w-auto',
+  compact: 'h-8 w-auto',
 };
 
 const FULL_SIZE: Record<'login' | 'full', string> = {
@@ -48,8 +48,8 @@ export function BrandLogo({
         <img
           src={FULL_PNG}
           alt={alt}
-          width={519}
-          height={530}
+          width={530}
+          height={547}
           className={cn('w-auto object-contain', FULL_SIZE[variant])}
         />
       </picture>
@@ -63,12 +63,9 @@ export function BrandLogo({
         <img
           src={MARK_PNG}
           alt={alt}
-          width={420}
-          height={260}
-          className={cn(
-            'shrink-0 rounded-lg object-cover shadow-sm ring-1 ring-slate-200/70',
-            MARK_SIZE[variant],
-          )}
+          width={527}
+          height={254}
+          className={cn('shrink-0 object-contain', MARK_SIZE[variant])}
         />
       </picture>
       {variant === 'navigation' && (

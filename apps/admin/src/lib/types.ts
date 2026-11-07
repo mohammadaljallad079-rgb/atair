@@ -97,6 +97,8 @@ export interface Driver {
   completedOrders: number; cancelledOrders: number; totalEarnings: string;
   nationalId?: string | null; nationalIdExpiry?: string | null;
   licenseNumber?: string | null; licenseExpiry?: string | null;
+  nationality?: string | null; dateOfBirth?: string | null; address?: string | null;
+  zoneId?: string | null; employmentType?: string | null; classification?: string | null;
   suspendedReason?: string | null;
   lastLocationAt: string | null; createdAt: string;
 }

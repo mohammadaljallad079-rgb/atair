@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { endpoints } from '@/lib/endpoints';
 import { useResourceList } from '@/lib/use-resource-list';
@@ -11,13 +12,16 @@ import { DataTable, Column } from '@/components/ui/data-table';
 import { Pagination } from '@/components/ui/pagination';
 import { FilterBar } from '@/components/ui/filters';
 import { SearchInput, Select } from '@/components/ui/field';
+import { Button } from '@/components/ui/button';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { RequirePermission } from '@/components/ui/permission-gate';
+import { RequirePermission, PermissionGate } from '@/components/ui/permission-gate';
+import { AddDriverDialog } from '@/components/drivers/add-driver-dialog';
 import type { Driver } from '@/lib/types';
 
 export default function DriversPage() {
   const { t, locale } = useI18n();
   const router = useRouter();
+  const [addOpen, setAddOpen] = useState(false);
 
   const list = useResourceList<Driver>((query, signal) => endpoints.drivers(query), { pageSize: 20 });
 
@@ -35,7 +39,17 @@ export default function DriversPage() {
 
   return (
     <RequirePermission permission="drivers.view">
-      <PageHeader title={t('drivers.title')} subtitle={t('drivers.subtitle')} />
+      <PageHeader
+        title={t('drivers.title')}
+        subtitle={t('drivers.subtitle')}
+        actions={
+          <PermissionGate permission="drivers.create">
+            <Button onClick={() => setAddOpen(true)}>{t('drivers.create')}</Button>
+          </PermissionGate>
+        }
+      />
+
+      <AddDriverDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={list.reload} />
 
       <Card>
         <FilterBar onClear={list.resetFilters}>
