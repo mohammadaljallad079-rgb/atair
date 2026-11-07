@@ -17,6 +17,7 @@ Integrated internal transport & last-mile delivery platform. Monorepo (npm works
 - Build db package: `npm run -w @atair/db build`
 - Migrate: `npm run db:migrate` | Deploy: `npm run db:deploy`
 - Seed: `npm run db:seed` (creates platform + `atair-demo` tenants, RBAC, demo users, Riyadh zone/pricing).
+- Demo wiring: `npm run db:seed:demo` — additive/idempotent, **`atair-demo` tenant only**. Approves the demo fleet + primary store, links login accounts to demo customers/drivers (password `ChangeMe123!`), and back-fills order tracking codes + driver assignments. Run it **after** `db:seed`; the base seed alone leaves the apps empty (no logins, `pending` approvals, no tracking codes). Deliberately leaves one driver and `rival-store` pending so the admin approval flow can be demonstrated. Never touches other tenants.
 - API dev: `npm run api:dev` | Build: `npm run api:build`
 - Typecheck (both apps): `npm run typecheck` | Lint (both apps): `npm run lint`
 - API tests: `npm run api:test` | Admin tests: `npm run -w @atair/admin test` | Merchant tests: `npm run -w @atair/merchant test` | Customer tests: `npm run -w @atair/customer test` | Web tests: `npm run -w @atair/web test`
