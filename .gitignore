@@ -45,3 +45,6 @@ apps/mobile/**/build/
 
 # Local deploy artifacts (bundles, APKs, patches)
 dist-mobile/
+
+# Android release keystore (never commit)
+apps/mobile/android-keys/

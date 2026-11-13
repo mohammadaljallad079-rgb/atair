@@ -14,9 +14,11 @@ Emits, for every app and density:
   - adaptive mipmap-anydpi-v26/ic_launcher{,_round}.xml
   - drawable/ic_launcher_background.xml      (gradient)
   - web     web/icons/Icon-{192,512}.png + maskable + web/favicon.png
+  - iOS     ios/Runner/Assets.xcassets/AppIcon.appiconset/*.png (opaque, no alpha)
 
 Run from anywhere:  python3 apps/mobile/make_icons.py
 """
+import json
 import os
 import re
 from PIL import Image, ImageDraw
@@ -127,6 +129,34 @@ def main():
         print('android icons generated:', app)
 
         write_web_icons(os.path.join(HERE, app), app)
+        write_ios_icons(os.path.join(HERE, app), app)
+
+
+def write_ios_icons(app_dir, app):
+    """Generate the iOS AppIcon set from the same official artwork.
+
+    App Store icons must be opaque (no alpha channel), so the bird is composited
+    on the official gradient tile and the result is flattened to RGB.
+    """
+    icon_set = os.path.join(app_dir, 'ios', 'Runner', 'Assets.xcassets', 'AppIcon.appiconset')
+    contents_path = os.path.join(icon_set, 'Contents.json')
+    if not os.path.isfile(contents_path):
+        print('skip (no ios iconset):', app)
+        return
+    bird = Image.open(MARK).convert('RGBA')
+    with open(contents_path, encoding='utf-8') as fh:
+        contents = json.load(fh)
+    for image in contents.get('images', []):
+        filename = image.get('filename')
+        size = image.get('size')
+        scale = image.get('scale')
+        if not filename or not size or not scale:
+            continue
+        side = round(float(size.split('x')[0]) * float(scale.rstrip('x')))
+        tile = centered(gradient(side),
+                        fit(bird, round(side * 0.8), round(side * 0.8))).convert('RGB')
+        tile.save(os.path.join(icon_set, filename))
+    print('ios icons generated:', app)
 
 
 def write_web_icons(app_dir, app):
